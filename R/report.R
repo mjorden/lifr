@@ -349,10 +349,10 @@ print.lif_site <- function(x, ...) {
     xmax <- suppressWarnings(max(c(rd$depth, pd$depth), na.rm = TRUE))
     if (!is.finite(xmax) || xmax <= 0) xmax <- 1
     ymax <- .axis_cap(c(rd$signal, pd$signal), 200)
-    left <- .lif_panel(rd, b, xmax, ymax, title = paste0(b, " \u2014 input"))
+    left <- .lif_panel(rd, b, xmax, ymax, title = paste0(b, " - input"))
     if (!paired) { plots[[b]] <- left; next }
     right <- .lif_panel(pd, b, xmax, ymax, show_y_axis = FALSE,
-                        title = paste0(b, " \u2014 edited"))
+                        title = paste0(b, " - edited"))
     shade <- .boring_edit_windows(x$edits, b, xmax)
     if (length(shade)) {
       top <- vapply(shade, `[`, numeric(1), 1L); bot <- vapply(shade, `[`, numeric(1), 2L)
@@ -370,7 +370,7 @@ print.lif_site <- function(x, ...) {
         cnt <- if (is.na(n) || n <= 0) "" else sprintf(" (%d row%s)", as.integer(n),
                                                        if (n == 1) "" else "s")
         note <- if (identical(bulk$fn[j], "hp_correction"))
-          " \u2014 does not alter the plotted signal" else ""
+          " - does not alter the plotted signal" else ""
         paste0(bulk$fn[j], cnt, note)
       }, character(1))
       right <- right + ggplot2::labs(caption = paste0(strwrap(
