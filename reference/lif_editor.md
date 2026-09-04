@@ -68,9 +68,9 @@ lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)))
 #> [lif_editor] LIF-05: zeroed 37 row(s) (0-1.5 ft, 30-Inf ft)
 edit_history(lif)
 #>                   timestamp         fn boring top bottom value n_rows_changed
-#> 1 2026-09-04 20:26:24 +0000 lif_editor LIF-03   0    2.0     0              8
-#> 2 2026-09-04 20:26:24 +0000 lif_editor LIF-05   0    1.5     0              6
-#> 3 2026-09-04 20:26:24 +0000 lif_editor LIF-05  30    Inf     0             31
+#> 1 2026-09-04 20:34:28 +0000 lif_editor LIF-03   0    2.0     0              8
+#> 2 2026-09-04 20:34:28 +0000 lif_editor LIF-05   0    1.5     0              6
+#> 3 2026-09-04 20:34:28 +0000 lif_editor LIF-05  30    Inf     0             31
 #>   notes
 #> 1  <NA>
 #> 2  <NA>

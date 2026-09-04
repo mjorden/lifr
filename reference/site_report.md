@@ -16,9 +16,9 @@ into any of:
   sidecars written next to it.
 
 - `"pdf"`: the Markdown rendered through `rmarkdown` (pandoc plus a
-  LaTeX distribution such as TinyTeX). Skipped with a warning when that
-  toolchain is missing. Also writes `<prefix>_logs.pdf`, one page per
-  boring, through R's own
+  LaTeX distribution providing `xelatex`, such as TinyTeX). Skipped with
+  a warning when that toolchain is missing. Also writes
+  `<prefix>_logs.pdf`, one page per boring, through R's own
   [`pdf()`](https://rdrr.io/r/grDevices/pdf.html) device, which needs no
   LaTeX.
 

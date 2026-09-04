@@ -64,9 +64,9 @@ lif <- lif_apply_edits(lif, plan)
 #> [lif_apply_edits] Applied 3 edit(s).
 edit_history(lif)
 #>                   timestamp              fn boring top bottom value
-#> 1 2026-09-04 20:26:23 +0000 lif_editor_bulk   <NA>   0    1.5     0
-#> 2 2026-09-04 20:26:23 +0000      lif_editor LIF-02  25 1000.0     0
-#> 3 2026-09-04 20:26:23 +0000        lif_keep LIF-05   8   30.0     0
+#> 1 2026-09-04 20:34:28 +0000 lif_editor_bulk   <NA>   0    1.5     0
+#> 2 2026-09-04 20:34:28 +0000      lif_editor LIF-02  25 1000.0     0
+#> 3 2026-09-04 20:34:28 +0000        lif_keep LIF-05   8   30.0     0
 #>   n_rows_changed                                           notes
 #> 1             72                                            <NA>
 #> 2             45                                            <NA>

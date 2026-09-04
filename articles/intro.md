@@ -126,10 +126,10 @@ lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)
 lif <- hp_correction(lif, water_table = 6)
 tail(edit_history(lif), 4)
 #>                    timestamp            fn boring top bottom value
-#> 12 2026-09-04 20:26:40 +0000    lif_editor LIF-12   0      1     0
-#> 13 2026-09-04 20:26:40 +0000    lif_editor LIF-03  20     22     0
-#> 14 2026-09-04 20:26:40 +0000      lif_keep LIF-02   6     28     0
-#> 15 2026-09-04 20:26:40 +0000 hp_correction   <NA>  NA     NA    NA
+#> 12 2026-09-04 20:34:46 +0000    lif_editor LIF-12   0      1     0
+#> 13 2026-09-04 20:34:46 +0000    lif_editor LIF-03  20     22     0
+#> 14 2026-09-04 20:34:46 +0000      lif_keep LIF-02   6     28     0
+#> 15 2026-09-04 20:34:46 +0000 hp_correction   <NA>  NA     NA    NA
 #>    n_rows_changed                                           notes
 #> 12              4                                            <NA>
 #> 13              9                                            <NA>
@@ -220,7 +220,7 @@ site <- process_site(demo, output_dir = out, site_name = "Demo Site",
 site
 #> <lif_site> Demo Site
 #>   12 boring(s), 1489 sample(s), 13 edit(s), 4 chart(s)
-#>   report(s): /tmp/RtmpTdkIWf/site201e1fbcca34/demo_site_report.html, /tmp/RtmpTdkIWf/site201e1fbcca34/demo_site_report.md
+#>   report(s): /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.html, /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.md
 basename(unlist(site$reports))
 #> [1] "demo_site_report.html" "demo_site_report.md"
 ```

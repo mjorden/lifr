@@ -171,10 +171,10 @@ Every call appends a row to the frame’s edit history.</p>
 <span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hp_correction.html">hp_correction</a></span><span class="op">(</span><span class="va">lif</span>, water_table <span class="op">=</span> <span class="fl">6</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">tail</a></span><span class="op">(</span><span class="fu"><a href="../reference/edit_history.html">edit_history</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;                    timestamp            fn boring top bottom value</span></span>
-<span><span class="co">#&gt; 12 2026-09-04 20:26:40 +0000    lif_editor LIF-12   0      1     0</span></span>
-<span><span class="co">#&gt; 13 2026-09-04 20:26:40 +0000    lif_editor LIF-03  20     22     0</span></span>
-<span><span class="co">#&gt; 14 2026-09-04 20:26:40 +0000      lif_keep LIF-02   6     28     0</span></span>
-<span><span class="co">#&gt; 15 2026-09-04 20:26:40 +0000 hp_correction   &lt;NA&gt;  NA     NA    NA</span></span>
+<span><span class="co">#&gt; 12 2026-09-04 20:34:46 +0000    lif_editor LIF-12   0      1     0</span></span>
+<span><span class="co">#&gt; 13 2026-09-04 20:34:46 +0000    lif_editor LIF-03  20     22     0</span></span>
+<span><span class="co">#&gt; 14 2026-09-04 20:34:46 +0000      lif_keep LIF-02   6     28     0</span></span>
+<span><span class="co">#&gt; 15 2026-09-04 20:34:46 +0000 hp_correction   &lt;NA&gt;  NA     NA    NA</span></span>
 <span><span class="co">#&gt;    n_rows_changed                                           notes</span></span>
 <span><span class="co">#&gt; 12              4                                            &lt;NA&gt;</span></span>
 <span><span class="co">#&gt; 13              9                                            &lt;NA&gt;</span></span>
@@ -231,7 +231,7 @@ LaTeX are available, a PDF plus a one-page-per-boring logs PDF.</p>
 <span><span class="va">site</span></span>
 <span><span class="co">#&gt; &lt;lif_site&gt; Demo Site</span></span>
 <span><span class="co">#&gt;   12 boring(s), 1489 sample(s), 13 edit(s), 4 chart(s)</span></span>
-<span><span class="co">#&gt;   report(s): /tmp/RtmpTdkIWf/site201e1fbcca34/demo_site_report.html, /tmp/RtmpTdkIWf/site201e1fbcca34/demo_site_report.md</span></span>
+<span><span class="co">#&gt;   report(s): /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.html, /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.md</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">basename</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">site</span><span class="op">$</span><span class="va">reports</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "demo_site_report.html" "demo_site_report.md"</span></span></code></pre></div>
 </div>
