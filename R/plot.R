@@ -346,12 +346,35 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 #' @param output_file Optional PNG path.
 #' @param width,height,dpi Passed to `ggplot2::ggsave()`.
 #' @return A ggplot object.
+#' @section Reading the map:
+#' * Marker **area** is proportional to peak signal (square-root scaling),
+#'   so the response pattern reads in greyscale.
+#' * A **hollow circle** is a non-detect: no reading above `nd_threshold`
+#'   in the depth window.
+#' * Marker **fill** is a neutral blue unless `use_instrument_color = TRUE`,
+#'   which uses the emission colour recorded at the depth of peak signal.
+#'   That colour is the product signature analysts read in the field; the
+#'   caption says so whenever it is in use.
+#' * The label under each marker is the boring name and its peak %RE.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
 #' boring_map(lif)
+#'
+#' # Product-signature colours, a depth window, and figure metadata
 #' boring_map(lif, depth_min = 10, depth_max = 25, use_instrument_color = TRUE,
-#'            site_name = "Demo site")
+#'            site_name = "Demo site", figure_date = "2026-09-04",
+#'            preparer = "Field team", crs_label = "NAD83 / Louisiana South (ftUS)")
+#'
+#' # Uniform markers, no cartographic furniture
+#' boring_map(lif, size_by_signal = FALSE, north_arrow = FALSE, scale_bar = FALSE)
+#'
+#' \dontrun{
+#' # Over aerial imagery (needs sf, png, and network access)
+#' bm <- fetch_basemap(lif, crs = 3452)
+#' boring_map(lif, basemap = bm, output_file = "boring_map.png")
+#' }
+#' @seealso [depth_slice_map()], [fetch_basemap()], `vignette("plotting")`
 #' @export
 boring_map <- function(data, depth_min = NULL, depth_max = NULL,
                        nd_threshold = 0, size_by_signal = TRUE, point_size = 4,

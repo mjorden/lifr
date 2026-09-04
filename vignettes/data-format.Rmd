@@ -1,0 +1,167 @@
+---
+title: "Raw files and what import does with them"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Raw files and what import does with them}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE)
+```
+
+```{r setup}
+library(lifr)
+```
+
+## The survey folder
+
+A LIF survey folder looks like this:
+
+```
+MySite/LIF/
+├── LIF-01.lif.dat.txt
+├── LIF-02.lif.dat.txt
+├── ...
+└── locations.csv
+```
+
+One log per boring, named for the boring, plus one locations table.
+
+### Log files
+
+A modern log is tab-delimited text with a header row. The first lines of a
+demo file:
+
+```{r head}
+demo <- system.file("extdata", "demo", package = "lifr")
+cat(readLines(file.path(demo, "LIF-05.lif.dat.txt"), n = 4), sep = "\n")
+```
+
+The exact set of columns depends on the probe and its firmware. `lifr`
+recognises these headers (case and punctuation are ignored):
+
+| Header seen in the field | Becomes | Notes |
+|---|---|---|
+| `Depth`, `Depth (ft)` | `depth` | Required |
+| `Signal`, `LIF` | `signal` | Required |
+| `EC.Value`, `EC Value`, `EC` | `ec` | Conductivity value (not `EC.Depth`, the channel's own offset depth) |
+| `HP.PresDown`, `HP PresDown`, `HP` | `hp` | Downward hydraulic push pressure |
+| `color`, `Color`, `colour` | `color` | Normalised to `#RRGGBB`; anything else becomes `NA` |
+
+Every other header is kept under a cleaned snake_case name:
+
+```{r read-one}
+x <- lif_read(file.path(demo, "LIF-05.lif.dat.txt"))
+names(x)
+```
+
+If a file carried, say, `EC.Depth` and `Detector 1 Max (uV)`, they would
+come through as `ec_depth` and `detector_1_max_uv`. Nothing recorded by the
+instrument is dropped at import.
+
+Comma-separated `.lif.dat.csv` files are read the same way; the delimiter
+is sniffed from the first line.
+
+### Legacy files without a header
+
+Older firmware wrote the same layout with no header row. Pass
+`legacy = TRUE` and the columns are assigned by count: 11 columns is a LIF
+log (`depth`, `signal`, `ch1`-`ch4`, `ec_depth`, `ec`, `hmr_depth`,
+`hmr_val`, `color`) and 16 columns is a combined HP-LIF log (the same plus
+`hp_depth`, `hp_time`, `hp_presup`, `hp`, `hp_flowup`).
+
+```{r legacy, eval = FALSE}
+lif <- lif_import("C:/Projects/OldSite/LIF", legacy = TRUE)
+```
+
+### The locations file
+
+A CSV or tab-delimited table with one row per boring:
+
+```{r locations}
+read_locations(file.path(demo, "locations.csv"))
+```
+
+Column names are matched case-insensitively, and a few aliases are
+accepted (`x`/`y` for easting/northing, `elevation` or `z` for `msl`,
+`name` or `id` for `boring`). Coordinates should be in a projected system
+in feet, typically the site's State Plane zone; `msl` is the ground-surface
+elevation, used to convert depth to elevation.
+
+A boring listed twice is an error. A duplicate row would double every
+reading of that boring through the join, which is the kind of mistake that
+is invisible in a plot and wrong in every statistic.
+
+## What `lif_import()` does
+
+1. Lists every file matching `.lif.dat.txt` or `.lif.dat.csv` in the
+   folder and reads each with `lif_read()`.
+2. Binds them. If the files do not agree on their column set (firmware
+   drift, a hand-edited export), the union is used and the missing cells are
+   `NA`, with a warning naming the files.
+3. Finds the locations file (`locations.csv` is preferred over
+   `locations.txt`, then any `locations*.csv`), or uses the path you give in
+   `locations_file`.
+4. Joins the coordinates on `boring`.
+5. Orders the columns: `easting`, `northing`, `depth`, `signal`, `boring`,
+   `msl`, `ec`, `hp`, `color`, then everything else.
+
+```{r import}
+lif <- lif_import(demo)
+```
+
+### When borings and locations disagree
+
+Boring names come from the file names, so `LIF-01.lif.dat.txt` must match a
+`LIF-01` row in the locations file exactly.
+
+- A log with no locations row is **dropped with a warning that names it**.
+  Fix the locations file and re-import.
+- A locations row with no log is ignored, with a message.
+- If **nothing** matches, import stops and prints both name lists side by
+  side. That is almost always a format mismatch (`LIF-01` versus `LIF01`).
+
+### Importing without coordinates
+
+You can look at logs before the survey crew has sent coordinates:
+
+```{r no-locs, eval = FALSE}
+lif <- lif_import("C:/Projects/MySite/LIF", locations_file = FALSE)
+```
+
+Depth profiles and summaries work without coordinates. Maps and the report's
+map section need them and will say so.
+
+## The `lif_data` object
+
+The import returns a plain data frame tagged with the `lif_data` class. The
+class adds a compact `print()` and a `summary()` that calls
+`summarize_lif()`; everything else you know about data frames, base R or
+tidyverse, keeps working.
+
+```{r class}
+class(lif)
+lif[lif$boring == "LIF-05" & lif$depth > 15 & lif$depth < 16, ]
+```
+
+To tag a frame you built some other way, use `new_lif_data()`; it checks for
+`boring`, `depth`, and `signal`. `compat_rename_legacy()` maps older
+TitleCase column names (`Depth`, `Signal`) onto the lowercase convention.
+
+## Trying the package without field data
+
+`lif_simulate()` writes a synthetic site in exactly this layout:
+
+```{r simulate}
+d <- tempfile("practice")
+lif_simulate(n_borings = 6, dir = d, verbose = FALSE)
+list.files(d)
+sim <- lif_import(d, verbose = FALSE)
+sim
+```
+
+The plume is a pair of Gaussian lobes, the pressure profile is hydrostatic
+with thin low-pressure sand layers, and the emission colour is keyed to
+signal strength. It is deliberately plausible and entirely made up.

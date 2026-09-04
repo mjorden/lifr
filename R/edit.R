@@ -85,12 +85,37 @@
 #' @return The edited frame with one audit row per interval appended to its
 #'   edit history (see [edit_history()]). With `preview = TRUE` the input is
 #'   returned unchanged.
+#' @section The audit trail:
+#' Every editor appends a row to `attr(data, "edits")` recording the
+#' timestamp, function, boring, depth window, replacement value, and number
+#' of readings changed. The history prints with the frame, is returned by
+#' [edit_history()], can be saved with [edit_history_save()], and is
+#' rendered in full on the site report's Processing history tab. dplyr
+#' verbs drop it; see [lif_get_edits()] to carry it across a pipe.
+#' @section Choosing an editor:
+#' * A known artifact inside an otherwise good log: `lif_editor()` with
+#'   `top`/`bottom`, or several windows through `delete`.
+#' * The same window on every boring (surface smear): [lif_editor_bulk()]
+#'   or [lif_zero_shallow()].
+#' * One clean interval and everything else suspect: [lif_keep()].
+#' * Many edits across a site: put them in a CSV and use
+#'   [lif_apply_edits()].
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
-#' lif <- lif_editor(lif, "LIF-03", top = 0, bottom = 2)
-#' lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)))
+#'
+#' # Mask one interval
+#' lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
+#'
+#' # Several intervals in one call, with NA instead of 0
+#' lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)),
+#'                   value = NA)
+#'
+#' # See what a call would do without doing it
+#' lif_editor(lif, "LIF-07", top = 0, bottom = 3, preview = TRUE)
+#'
 #' edit_history(lif)
+#' @seealso `vignette("editing")`
 #' @export
 lif_editor <- function(data, borename, top = 0, bottom = 1000, value = 0,
                        delete = NULL, preview = FALSE) {

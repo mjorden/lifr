@@ -1,0 +1,158 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Edit the .Rmd, then knit. -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%",
+  fig.width = 8,
+  fig.height = 5.5,
+  dpi = 110,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# lifr
+
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/mjorden/lifr/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/mjorden/lifr/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/mjorden/lifr/actions/workflows/pkgdown.yaml/badge.svg)](https://mjorden.github.io/lifr/)
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
+<!-- badges: end -->
+
+**lifr** reads Laser-Induced Fluorescence (LIF) borehole logs from
+high-resolution site characterization surveys (UVOST, TarGOST, and similar
+direct-push fluorescence probes), lets you clean them with a recorded audit
+trail, and turns them into plots and a site report.
+
+| Stage | What lifr does |
+|---|---|
+| **Import** | Reads every `.lif.dat.txt` in a folder into one tidy data frame, keeping every channel the instrument recorded, and joins boring coordinates from a locations file. |
+| **Edit** | Masks known-bad depth intervals. Every edit is logged in an audit trail that travels with the data and prints in the report. |
+| **Summarise & plot** | QA statistics, depth profiles, multi-channel overviews, plan-view boring maps (optionally over USGS aerial imagery), depth-slice maps, and site summary charts. |
+| **Report** | A self-contained HTML site report with Summary, Data & QA, Processing history, and Boring logs tabs, plus Markdown and PDF. |
+
+Full documentation, with every function and worked articles, is at
+<https://mjorden.github.io/lifr/>.
+
+## Installation
+
+```r
+# install.packages("remotes")
+remotes::install_github("mjorden/lifr")
+```
+
+lifr needs R 4.1 or newer. Optional extras: `ggrepel` for non-overlapping
+map labels, `sf` and `png` for aerial-imagery basemaps, and `rmarkdown` plus
+a LaTeX distribution (for example `tinytex::install_tinytex()`) for the PDF
+report.
+
+## Five-minute tour
+
+The package ships with a synthetic 12-boring site so everything below runs
+on a fresh install.
+
+```{r import}
+library(lifr)
+
+demo <- system.file("extdata", "demo", package = "lifr")
+lif <- lif_import(demo, verbose = FALSE)
+lif
+```
+
+One row per depth reading. The known channels are canonicalised to `signal`
+(%RE), `ec` (mS/m), `hp` (psi), and `color` (emission-wavelength hex); any
+other column in the source files is carried through untouched.
+
+### Look at the logs
+
+```{r plot-all, fig.height = 6.5}
+lif_plot_all(lif, ncol = 4)
+```
+
+```{r overview, fig.height = 4.5}
+lif_overview(lif, "LIF-11")
+```
+
+### Clean up with an audit trail
+
+Surface smear in the top foot and a rod-change artifact in one boring are
+typical things to mask before summarising. Each call appends a row to the
+edit history.
+
+```{r edit}
+lif <- lif_zero_shallow(lif, depth = 1)
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
+lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)   # keep one clean window
+tail(edit_history(lif), 3)
+```
+
+`qc_compare()` shows exactly what changed, with the edited depths in red:
+
+```{r qc, fig.height = 4.5}
+plots <- qc_compare(lif_import(demo, verbose = FALSE), lif)
+plots[["LIF-02"]]
+```
+
+### Summarise
+
+```{r summarize}
+qa <- summarize_lif(lif)
+qa$overview
+head(qa$by_boring)
+```
+
+### Map the site
+
+```{r map, fig.height = 7}
+boring_map(lif, use_instrument_color = TRUE, site_name = "Demo site")
+```
+
+```{r chart, fig.height = 4}
+chart_max_response(lif)
+```
+
+### Render the report
+
+```r
+site <- process_site(demo, output_dir = "out", site_name = "Demo site",
+                     corrections = list(zero_shallow = 1))
+site$reports$html
+```
+
+The HTML report is one self-contained file: stat tiles, the boring maps,
+peak-response tables, QA statistics, the complete edit log, and a
+one-boring-per-section log browser showing input beside edited data with
+the zeroed windows shaded.
+
+## Learn more
+
+- `vignette("intro")`: getting started, end to end.
+- `vignette("data-format")`: the raw file formats and what import does with them.
+- `vignette("editing")`: masking artifacts, edit plans, and the audit trail.
+- `vignette("plotting")`: a gallery of every plot with its options.
+- `vignette("reporting")`: `process_site()`, the report tabs, and output files.
+
+## About %RE
+
+LIF response is relative fluorescence, expressed as a percentage of a
+reference emitter (%RE). It indicates where fluorescent product is likely
+present. It is not a concentration and is not comparable to regulatory
+criteria; lifr never maps it onto such criteria.
+
+## Synthetic data
+
+The bundled demo site and every figure in the documentation come from
+`lif_simulate()`. They have no relation to any real site. Use
+`lif_simulate()` to try the package before you have field data.
+
+## License
+
+MIT. See `LICENSE.md`.

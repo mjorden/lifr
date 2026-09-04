@@ -1,0 +1,141 @@
+---
+title: "The site pipeline and report"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The site pipeline and report}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE)
+```
+
+```{r setup}
+library(lifr)
+demo <- system.file("extdata", "demo", package = "lifr")
+```
+
+## One call
+
+`process_site()` chains the pipeline: import, an optional edit plan,
+corrections, QA summary, site charts, and the report.
+
+```{r run}
+out  <- tempfile("site")
+plan <- data.frame(boring = c("*", "LIF-02"), action = c("delete", "keep"),
+                   top = c(0, 6), bottom = c(1, 28))
+
+site <- process_site(
+  demo,
+  edits          = plan,                       # or a path to edits.csv
+  corrections    = list(hp = list(water_table = 6)),
+  output_dir     = out,
+  site_name      = "Demo site",
+  report_formats = c("html", "md"),
+  quiet          = TRUE)
+site
+```
+
+The returned `lif_site` object holds everything the report was built from:
+
+```{r object}
+names(site)
+site$log
+head(site$edits)
+basename(unlist(site$reports))
+```
+
+`site$data` is the processed frame (classed, with its edit history) and
+`site$raw_data` is the frame exactly as imported, so you can keep working
+with either.
+
+### Arguments worth knowing
+
+| Argument | What it does |
+|---|---|
+| `edits` | A CSV path or data frame for `lif_apply_edits()`. See `vignette("editing")`. |
+| `corrections` | `list(zero_shallow = 1)` zeroes the top foot; `zero_below = 0.5` zeroes readings under 0.5 %RE; `hp = TRUE` or `hp = list(water_table = 6, gradient = 0.433)` runs `hp_correction()`. Applied in that order, after the edits. |
+| `crs` | The projected EPSG code of the coordinates. When given, the report adds a boring map over USGS aerial imagery (needs network access; degrades to a note offline). |
+| `response_thresholds` | The Summary tab lists borings whose peak exceeds each value (default 1, 10, 50 %RE). |
+| `report_formats` | Any of `"html"`, `"md"`, `"pdf"`. |
+| `date_suffix` | Appends `_YYMMDD` to every output name so successive runs sit side by side. |
+| `prefix` | Filename prefix; default is a slug of `site_name`. |
+
+## What gets written
+
+```{r files}
+list.files(out)
+```
+
+- `<prefix>_report.html`: the self-contained HTML report.
+- `<prefix>_report.md` plus `<prefix>_map_*.png` and `<prefix>_chart_*.png`
+  sidecars: the Markdown report. Keep them together when moving it.
+- `<prefix>_chart_*.png`: the site charts from `export_site_charts()`.
+- With `"pdf"`: `<prefix>_report.pdf` (rendered from the Markdown through
+  pandoc and LaTeX) and `<prefix>_logs.pdf`, one page per boring, drawn by
+  R's own PDF device so it needs no LaTeX.
+
+## The HTML report
+
+Open the HTML file in any browser. It needs no server and no internet
+connection; the figures are embedded and the tables sort when you click a
+heading. Printing lays every tab out as its own section.
+
+**Summary.** Stat tiles (borings, samples, depth range, channels, edits),
+the boring maps, the %RE disclosure, a table of every boring's peak
+response and the depth it occurred at, and one table per screening
+threshold listing the borings above it.
+
+**Data & QA.** A per-boring inventory (samples, top and bottom depth,
+native sampling interval, channels present), the summary statistics from
+`summarize_lif()` with units, the site charts, and a definitions footnote.
+
+**Processing history.** The chronological record: what was imported, the
+complete edit log, the corrections, and the pipeline steps with row and
+boring counts. This is the audit trail a reviewer reads to answer "what did
+you do to the data?"
+
+**Boring logs.** One section per boring showing the input log beside the
+edited log with the zeroed depth windows shaded red; whole-log operations
+without a window are named beneath the panel. A "changed borings only"
+filter and a navigation strip make a 40-boring site quick to scan, and each
+changed boring carries a badge naming its edited windows.
+
+```{r html}
+html <- readLines(site$reports$html, warn = FALSE)
+grep("data-tab=", html, value = TRUE)[1:4]
+```
+
+## Re-rendering without re-importing
+
+`site_report()` renders any subset of formats from the object:
+
+```{r rerender}
+site_report(site, formats = "md", output_dir = out, file_prefix = "demo_again",
+            quiet = TRUE)
+```
+
+That is the way to add a PDF after the fact, or to render into a different
+folder.
+
+## The PDF toolchain
+
+The main PDF is produced by `rmarkdown` from the Markdown report, which
+needs pandoc (bundled with RStudio) and a LaTeX distribution with
+`xelatex`. The easiest way to get one:
+
+```{r tinytex, eval = FALSE}
+install.packages("tinytex")
+tinytex::install_tinytex()
+```
+
+When either piece is missing, `process_site()` still writes the other
+formats and the logs PDF, and says so in a warning.
+
+## Reproducibility
+
+Keep the survey folder, the edits CSV, and the `process_site()` call in a
+script. Re-running it reproduces every figure and table, and the edit log in
+the report records the exact windows applied. With `date_suffix = TRUE`,
+successive runs are kept side by side instead of overwriting each other.

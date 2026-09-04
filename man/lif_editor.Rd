@@ -43,10 +43,45 @@ artifacts: surface smear, a rod change, a fluorescent mineral seam. The
 inverse, keeping one clean window and zeroing everything else, is
 \code{\link[=lif_keep]{lif_keep()}}.
 }
+\section{The audit trail}{
+
+Every editor appends a row to \code{attr(data, "edits")} recording the
+timestamp, function, boring, depth window, replacement value, and number
+of readings changed. The history prints with the frame, is returned by
+\code{\link[=edit_history]{edit_history()}}, can be saved with \code{\link[=edit_history_save]{edit_history_save()}}, and is
+rendered in full on the site report's Processing history tab. dplyr
+verbs drop it; see \code{\link[=lif_get_edits]{lif_get_edits()}} to carry it across a pipe.
+}
+
+\section{Choosing an editor}{
+
+\itemize{
+\item A known artifact inside an otherwise good log: \code{lif_editor()} with
+\code{top}/\code{bottom}, or several windows through \code{delete}.
+\item The same window on every boring (surface smear): \code{\link[=lif_editor_bulk]{lif_editor_bulk()}}
+or \code{\link[=lif_zero_shallow]{lif_zero_shallow()}}.
+\item One clean interval and everything else suspect: \code{\link[=lif_keep]{lif_keep()}}.
+\item Many edits across a site: put them in a CSV and use
+\code{\link[=lif_apply_edits]{lif_apply_edits()}}.
+}
+}
+
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
-lif <- lif_editor(lif, "LIF-03", top = 0, bottom = 2)
-lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)))
+
+# Mask one interval
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
+
+# Several intervals in one call, with NA instead of 0
+lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)),
+                  value = NA)
+
+# See what a call would do without doing it
+lif_editor(lif, "LIF-07", top = 0, bottom = 3, preview = TRUE)
+
 edit_history(lif)
+}
+\seealso{
+\code{vignette("editing")}
 }

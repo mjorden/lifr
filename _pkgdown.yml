@@ -72,6 +72,14 @@ reference:
       - site_report
 
 articles:
-  - title: Workflows
+  - title: Get started
+    desc: An end-to-end session on the bundled synthetic site.
     contents:
       - intro
+  - title: Guides
+    desc: One topic each, in the order a new project meets them.
+    contents:
+      - data-format
+      - editing
+      - plotting
+      - reporting

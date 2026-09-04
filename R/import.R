@@ -230,11 +230,45 @@ read_locations <- function(file) {
 #'   in the locations file are dropped with a warning naming them; if no
 #'   boring matches at all the import stops, because that is almost always a
 #'   naming-format mismatch.
+#' @section The survey folder:
+#' ```
+#' MySite/LIF/
+#'   LIF-01.lif.dat.txt    one tab-delimited log per boring, header row
+#'   LIF-02.lif.dat.txt
+#'   ...
+#'   locations.csv         boring, easting, northing, msl
+#' ```
+#' The boring name is the file name without its `.lif.dat.txt` suffix and
+#' must match the `boring` column of the locations file exactly.
+#' @section Column handling:
+#' Instrument headers vary between probes and firmware versions. These are
+#' recognised (case and punctuation ignored) and renamed:
+#' `Depth` to `depth`; `Signal` to `signal`; `EC.Value` / `EC` to `ec`;
+#' `HP.PresDown` / `HP` to `hp`; `color` / `Color` to `color` (normalised to
+#' `#RRGGBB`). Any other column is kept under a cleaned snake_case name, so
+#' `EC.Depth` becomes `ec_depth` and `Detector 1 Max (uV)` becomes
+#' `detector_1_max_uv`. Files that disagree on their column set are bound
+#' with `NA` in the missing cells and a warning naming them.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
 #' lif
 #' unique(lif$boring)
+#' names(lif)
+#'
+#' # Logs only, before the coordinates arrive
+#' logs <- lif_import(demo, locations_file = FALSE, verbose = FALSE)
+#' "easting" %in% names(logs)
+#'
+#' \dontrun{
+#' # A project folder with an explicit locations table
+#' lif <- lif_import("C:/Projects/MySite/LIF",
+#'                   locations_file = "C:/Projects/MySite/survey/borings.csv")
+#'
+#' # Older headerless firmware exports
+#' lif <- lif_import("C:/Projects/OldSite/LIF", legacy = TRUE)
+#' }
+#' @seealso `vignette("data-format")` for the file formats in detail.
 #' @export
 lif_import <- function(data_dir = ".", locations_file = NULL,
                        pattern = .LIF_FILE_PATTERN, legacy = FALSE,

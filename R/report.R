@@ -43,6 +43,27 @@
 #'   `summary` ([summarize_lif()] result), `edits` (the audit trail),
 #'   `charts` (PNG paths), `reports` (named list of report paths), and
 #'   `meta`.
+#' @section Files written to `output_dir`:
+#' * `<prefix>_report.html`: the self-contained HTML report (Summary, Data
+#'   & QA, Processing history, and Boring logs tabs).
+#' * `<prefix>_report.md` with `<prefix>_map_*.png` / `<prefix>_chart_*.png`
+#'   sidecars: the Markdown report.
+#' * `<prefix>_report.pdf` and `<prefix>_logs.pdf` (one page per boring)
+#'   when `"pdf"` is requested and pandoc plus LaTeX are available.
+#' * `<prefix>_chart_max_response.png`, `_chart_peak_by_boring.png`,
+#'   `_chart_hp_histogram.png`, `_chart_ec_histogram.png`: the site charts.
+#' @section A typical project script:
+#' ```
+#' site <- process_site("C:/Projects/MySite/LIF",
+#'                      edits       = "C:/Projects/MySite/edits.csv",
+#'                      corrections = list(hp = list(water_table = 8)),
+#'                      output_dir  = "C:/Projects/MySite/out",
+#'                      site_name   = "My Site",
+#'                      crs         = 3452,
+#'                      date_suffix = TRUE)
+#' ```
+#' Re-running the script reproduces every output; the edit log inside the
+#' report records exactly which windows were applied.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' out <- tempfile("site")

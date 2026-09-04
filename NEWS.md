@@ -17,3 +17,6 @@ Initial public release.
   HTML, Markdown, PDF, and a per-boring logs PDF.
 - `lif_simulate()` synthetic site generator; the bundled `demo` dataset is
   built with it.
+- Documentation: a getting-started guide plus articles on the raw file
+  format, editing with an audit trail, a plot gallery, and the site report;
+  README with rendered example figures.

@@ -43,9 +43,52 @@ and joins a locations table so every row carries its boring's \code{easting},
 \code{northing}, and ground-surface elevation \code{msl}. All source columns are
 preserved.
 }
+\section{The survey folder}{
+
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{MySite/LIF/
+  LIF-01.lif.dat.txt    one tab-delimited log per boring, header row
+  LIF-02.lif.dat.txt
+  ...
+  locations.csv         boring, easting, northing, msl
+}\if{html}{\out{</div>}}
+
+The boring name is the file name without its \code{.lif.dat.txt} suffix and
+must match the \code{boring} column of the locations file exactly.
+}
+
+\section{Column handling}{
+
+Instrument headers vary between probes and firmware versions. These are
+recognised (case and punctuation ignored) and renamed:
+\code{Depth} to \code{depth}; \code{Signal} to \code{signal}; \code{EC.Value} / \code{EC} to \code{ec};
+\code{HP.PresDown} / \code{HP} to \code{hp}; \code{color} / \code{Color} to \code{color} (normalised to
+\verb{#RRGGBB}). Any other column is kept under a cleaned snake_case name, so
+\code{EC.Depth} becomes \code{ec_depth} and \verb{Detector 1 Max (uV)} becomes
+\code{detector_1_max_uv}. Files that disagree on their column set are bound
+with \code{NA} in the missing cells and a warning naming them.
+}
+
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif
 unique(lif$boring)
+names(lif)
+
+# Logs only, before the coordinates arrive
+logs <- lif_import(demo, locations_file = FALSE, verbose = FALSE)
+"easting" \%in\% names(logs)
+
+\dontrun{
+# A project folder with an explicit locations table
+lif <- lif_import("C:/Projects/MySite/LIF",
+                  locations_file = "C:/Projects/MySite/survey/borings.csv")
+
+# Older headerless firmware exports
+lif <- lif_import("C:/Projects/OldSite/LIF", legacy = TRUE)
+}
+}
+\seealso{
+\code{vignette("data-format")} for the file formats in detail.
 }

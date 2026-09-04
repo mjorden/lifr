@@ -81,6 +81,36 @@ edit plan and corrections, summarises the data, writes the site summary
 charts, and renders the site report. Every step is logged and every edit
 is recorded in the audit trail the report prints.
 }
+\section{Files written to \code{output_dir}}{
+
+\itemize{
+\item \verb{<prefix>_report.html}: the self-contained HTML report (Summary, Data
+& QA, Processing history, and Boring logs tabs).
+\item \verb{<prefix>_report.md} with \verb{<prefix>_map_*.png} / \verb{<prefix>_chart_*.png}
+sidecars: the Markdown report.
+\item \verb{<prefix>_report.pdf} and \verb{<prefix>_logs.pdf} (one page per boring)
+when \code{"pdf"} is requested and pandoc plus LaTeX are available.
+\item \verb{<prefix>_chart_max_response.png}, \verb{_chart_peak_by_boring.png},
+\verb{_chart_hp_histogram.png}, \verb{_chart_ec_histogram.png}: the site charts.
+}
+}
+
+\section{A typical project script}{
+
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{site <- process_site("C:/Projects/MySite/LIF",
+                     edits       = "C:/Projects/MySite/edits.csv",
+                     corrections = list(hp = list(water_table = 8)),
+                     output_dir  = "C:/Projects/MySite/out",
+                     site_name   = "My Site",
+                     crs         = 3452,
+                     date_suffix = TRUE)
+}\if{html}{\out{</div>}}
+
+Re-running the script reproduces every output; the edit log inside the
+report records exactly which windows were applied.
+}
+
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 out <- tempfile("site")

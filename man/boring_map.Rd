@@ -83,10 +83,40 @@ hollow circles. Marker fill is a neutral blue unless
 \code{use_instrument_color = TRUE}, which fills each marker with the
 emission colour recorded at the depth of peak signal.
 }
+\section{Reading the map}{
+
+\itemize{
+\item Marker \strong{area} is proportional to peak signal (square-root scaling),
+so the response pattern reads in greyscale.
+\item A \strong{hollow circle} is a non-detect: no reading above \code{nd_threshold}
+in the depth window.
+\item Marker \strong{fill} is a neutral blue unless \code{use_instrument_color = TRUE},
+which uses the emission colour recorded at the depth of peak signal.
+That colour is the product signature analysts read in the field; the
+caption says so whenever it is in use.
+\item The label under each marker is the boring name and its peak \%RE.
+}
+}
+
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 boring_map(lif)
+
+# Product-signature colours, a depth window, and figure metadata
 boring_map(lif, depth_min = 10, depth_max = 25, use_instrument_color = TRUE,
-           site_name = "Demo site")
+           site_name = "Demo site", figure_date = "2026-09-04",
+           preparer = "Field team", crs_label = "NAD83 / Louisiana South (ftUS)")
+
+# Uniform markers, no cartographic furniture
+boring_map(lif, size_by_signal = FALSE, north_arrow = FALSE, scale_bar = FALSE)
+
+\dontrun{
+# Over aerial imagery (needs sf, png, and network access)
+bm <- fetch_basemap(lif, crs = 3452)
+boring_map(lif, basemap = bm, output_file = "boring_map.png")
+}
+}
+\seealso{
+\code{\link[=depth_slice_map]{depth_slice_map()}}, \code{\link[=fetch_basemap]{fetch_basemap()}}, \code{vignette("plotting")}
 }

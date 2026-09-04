@@ -1,0 +1,180 @@
+---
+title: "Editing logs with an audit trail"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Editing logs with an audit trail}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4.5, dpi = 72)
+```
+
+```{r setup, message = FALSE}
+library(lifr)
+demo <- system.file("extdata", "demo", package = "lifr")
+lif <- lif_import(demo, verbose = FALSE)
+```
+
+## Why edit at all
+
+LIF logs pick up things that are not product: smear in the top foot where
+the probe was still settling, a spike at a rod change, a fluorescent mineral
+seam, a stretch below total depth where the probe was already pulling back.
+Left in, those readings inflate peak statistics and put false hot spots on
+the map. Taken out silently, they leave a reviewer wondering what was
+removed and why.
+
+`lifr` editors do the second part properly. Every edit sets `signal` to a
+replacement value (0 by default) over a depth window and appends a row to an
+edit history that travels with the data frame and prints in the site report.
+
+## The editor family
+
+| Function | Zeroes | Scope |
+|---|---|---|
+| `lif_editor()` | inside a depth window | one boring |
+| `lif_editor_bulk()` | inside a depth window | every boring |
+| `lif_keep()` | **outside** a depth window | one boring |
+| `lif_zero_shallow()` | at or above a depth | every boring or a subset |
+| `lif_zero_below_threshold()` | wherever signal is below a value | every boring or a subset |
+| `lif_apply_edits()` | whatever a plan table says | rows of the plan |
+
+### Delete a window
+
+```{r editor, message = TRUE}
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
+```
+
+Several windows in one call:
+
+```{r editor-multi, message = TRUE}
+lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)))
+```
+
+### Preview first
+
+`preview = TRUE` reports how many readings would change and returns the
+data unchanged:
+
+```{r preview, message = TRUE}
+lif_editor(lif, "LIF-07", top = 0, bottom = 3, preview = TRUE)
+```
+
+### Keep a window instead
+
+When the honest description is "the clean interval is 6 to 28 ft", say that
+directly rather than as two deletes:
+
+```{r keep, message = TRUE}
+lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)
+```
+
+The audit row records the kept span and the zeroed rows are its complement.
+The report's log plots read that note and shade the zeroed depths, not the
+kept ones.
+
+### Whole-site helpers
+
+```{r helpers, message = TRUE}
+lif <- lif_zero_shallow(lif, depth = 1)
+lif <- lif_zero_below_threshold(lif, threshold = 0.5, borings = c("LIF-01", "LIF-04"))
+```
+
+## Edit plans in a CSV
+
+For a real site, keep the edits in a file next to the data. One row per
+edit:
+
+```
+boring,action,top,bottom
+*,delete,0,1
+LIF-03,delete,20,22
+LIF-02,keep,6,28
+LIF-05,delete,30,
+```
+
+- `boring`: a boring name, or `*` for every boring (delete rows only).
+- `action`: `delete` (default), `clean` (an alias), or `keep`.
+- `top`, `bottom`: blank means the function's own default, so `30,` reads
+  "from 30 ft to the bottom of the boring".
+
+Validate the plan before applying it. Every row is checked first, so a typo
+in row 5 cannot half-apply rows 1 to 4:
+
+```{r plan, message = TRUE}
+plan <- data.frame(boring = c("*", "LIF-03", "LIF-02", "LIF-05"),
+                   action = c("delete", "delete", "keep", "delete"),
+                   top    = c(0, 20, 6, 30),
+                   bottom = c(1, 22, 28, NA))
+fresh <- lif_import(demo, verbose = FALSE)
+lif_apply_edits(fresh, plan, validate = TRUE)
+fresh <- lif_apply_edits(fresh, plan)
+```
+
+A `*` row that would span every reading at the site is refused; wiping the
+whole dataset is never a one-liner.
+
+## The audit trail
+
+```{r history}
+edit_history(fresh)
+```
+
+Each row carries a time-zone-stamped timestamp, the function, the boring
+(`NA` means every boring), the window, the replacement value, how many rows
+changed, and any notes. Save it beside the data for the project record:
+
+```{r save, eval = FALSE}
+edit_history_save(fresh, "C:/Projects/MySite/edit_log.csv")
+```
+
+Edited frames print a provenance banner so nobody mistakes them for raw
+data:
+
+```{r banner}
+print(fresh, n = 2)
+```
+
+### Carrying the history through dplyr
+
+dplyr verbs (`filter()`, `mutate()`, `select()`) rebuild the data frame and
+drop non-standard attributes, so a pipe step silently discards the history.
+Save it before and restore it after:
+
+```{r rescue, eval = FALSE}
+saved <- lif_get_edits(fresh)
+sub   <- dplyr::filter(fresh, boring %in% c("LIF-02", "LIF-03"))
+sub   <- lif_set_edits(sub, saved)
+```
+
+Base subsetting with `[` keeps the attribute, so `fresh[fresh$boring ==
+"LIF-02", ]` needs no rescue.
+
+## Corrections are edits too
+
+`hp_correction()` removes the hydrostatic component of hydraulic push
+pressure, `lif_downsample()` thins the depth spacing, and both record
+themselves in the same history so the report can list them:
+
+```{r corrections, message = TRUE}
+fresh <- hp_correction(fresh, water_table = 6)
+thin  <- lif_downsample(fresh, target_interval = 1, preserve_above = 5)
+tail(edit_history(thin), 2)
+```
+
+## Seeing what changed
+
+`qc_compare()` draws input beside edited for every boring that differs,
+with the changed depths in red, and skips the rest:
+
+```{r qc, message = TRUE}
+plots <- qc_compare(lif_import(demo, verbose = FALSE), fresh)
+names(plots)
+plots[["LIF-05"]]
+```
+
+The site report does the same for every boring on its Boring logs tab,
+with the zeroed windows shaded.
