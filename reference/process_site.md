@@ -145,6 +145,6 @@ site$log
 site <- process_site(demo, output_dir = out, report_formats = "html",
                      quiet = TRUE)
 site$reports$html
-#> [1] "/tmp/RtmpLmo60i/site1e3fe3baee1/demo_report.html"
+#> [1] "/tmp/RtmpUuSK5L/site1d7e1df52fd9/demo_report.html"
 # }
 ```

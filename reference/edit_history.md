@@ -40,7 +40,7 @@ lif <- lif_editor_bulk(lif, top = 0, bottom = 2, verbose = FALSE)
 #> [lif_editor_bulk] zeroed 96 row(s) (0-2 ft) across 12 boring(s)
 edit_history(lif)
 #>                   timestamp              fn boring top bottom value
-#> 1 2026-09-04 20:21:09 +0000 lif_editor_bulk   <NA>   0      2     0
+#> 1 2026-09-04 20:26:21 +0000 lif_editor_bulk   <NA>   0      2     0
 #>   n_rows_changed notes
 #> 1             96  <NA>
 lif <- edit_history_clear(lif)
