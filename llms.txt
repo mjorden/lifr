@@ -1,0 +1,187 @@
+# lifr
+
+Import, plot, and report Laser-Induced Fluorescence (LIF) borehole logs
+from high-resolution site characterization surveys (UVOST, TarGOST, and
+similar direct-push fluorescence probes).
+
+- **Import** raw `.lif.dat.txt` logs into a tidy data frame that keeps
+  every channel the instrument recorded, with boring coordinates joined
+  from a locations file.
+- **Edit** known-bad depth intervals with a recorded audit trail that
+  travels with the data and prints in the report.
+- **Summarise and plot**: depth profiles, multi-channel overviews,
+  plan-view boring maps (optionally over USGS aerial imagery),
+  depth-slice maps, and site summary charts.
+- **Report**: a self-contained HTML site report with Summary, Data & QA,
+  Processing history, and Boring logs tabs, plus Markdown and PDF.
+
+## Installation
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("mjorden/lifr")
+```
+
+## Quick start
+
+``` r
+
+library(lifr)
+
+demo <- system.file("extdata", "demo", package = "lifr")
+lif <- lif_import(demo)              # logs + locations, all channels kept
+lif
+
+lif <- lif_zero_shallow(lif, depth = 1)                  # mask surface smear
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)  # mask an artifact
+edit_history(lif)                                        # the audit trail
+
+summarize_lif(lif)$by_boring
+lif_plot_all(lif, ncol = 4)
+boring_map(lif, use_instrument_color = TRUE)
+
+site <- process_site(demo, output_dir = "out", site_name = "Demo Site")
+site$reports$html
+```
+
+See
+[`vignette("intro", package = "lifr")`](https://mjorden.github.io/lifr/articles/intro.md)
+for a full walkthrough.
+
+## Data model
+
+Every importer returns a `lif_data` data frame with one row per depth
+reading:
+
+| Column | Meaning |
+|----|----|
+| `boring` | Boring name (from the log file name) |
+| `depth` | Depth below ground surface, ft |
+| `signal` | LIF response, %RE |
+| `easting`, `northing`, `msl` | From the locations file |
+| `ec`, `hp`, `color` | Optional channels: conductivity (mS/m), hydraulic push pressure (psi), emission-wavelength hex colour |
+| anything else | Every other source column, under a cleaned snake_case name |
+
+`%RE` is relative fluorescence, a screening proxy for the presence of
+fluorescent product. It is not a concentration and is not comparable to
+regulatory criteria; `lifr` never maps it onto such criteria.
+
+## Synthetic data
+
+The bundled demo site and everything in the documentation is generated
+by
+[`lif_simulate()`](https://mjorden.github.io/lifr/reference/lif_simulate.md).
+It has no relation to any real site. Use it to try the package before
+you have field data.
+
+## License
+
+MIT. See `LICENSE.md`.
+
+# Package index
+
+## Import
+
+Read raw LIF logs and boring locations into a `lif_data` frame.
+
+- [`lif_import()`](https://mjorden.github.io/lifr/reference/lif_import.md)
+  : Import a directory of LIF logs and join boring locations
+- [`lif_read()`](https://mjorden.github.io/lifr/reference/lif_read.md) :
+  Read one raw LIF log file
+- [`read_locations()`](https://mjorden.github.io/lifr/reference/read_locations.md)
+  : Read a boring locations table
+- [`new_lif_data()`](https://mjorden.github.io/lifr/reference/lif_data.md)
+  [`print(`*`<lif_data>`*`)`](https://mjorden.github.io/lifr/reference/lif_data.md)
+  [`summary(`*`<lif_data>`*`)`](https://mjorden.github.io/lifr/reference/lif_data.md)
+  : Construct a validated LIF data frame
+- [`compat_rename_legacy()`](https://mjorden.github.io/lifr/reference/compat_rename_legacy.md)
+  : Rename legacy TitleCase columns to the snake_case convention
+- [`lif_simulate()`](https://mjorden.github.io/lifr/reference/lif_simulate.md)
+  : Simulate a synthetic LIF site
+
+## Edit with an audit trail
+
+- [`lif_editor()`](https://mjorden.github.io/lifr/reference/lif_editor.md)
+  : Zero LIF signal inside a depth window for one boring
+- [`lif_editor_bulk()`](https://mjorden.github.io/lifr/reference/lif_editor_bulk.md)
+  : Zero LIF signal inside a depth window across all borings
+- [`lif_keep()`](https://mjorden.github.io/lifr/reference/lif_keep.md) :
+  Keep one clean window for a boring and zero everything outside it
+- [`lif_zero_shallow()`](https://mjorden.github.io/lifr/reference/lif_zero_shallow.md)
+  : Zero signal at or above a given depth
+- [`lif_zero_below_threshold()`](https://mjorden.github.io/lifr/reference/lif_zero_below_threshold.md)
+  : Zero signal below a threshold value
+- [`lif_apply_edits()`](https://mjorden.github.io/lifr/reference/lif_apply_edits.md)
+  : Apply a batch of edits from a data frame or CSV
+- [`edit_history()`](https://mjorden.github.io/lifr/reference/edit_history.md)
+  [`edit_history_save()`](https://mjorden.github.io/lifr/reference/edit_history.md)
+  [`edit_history_clear()`](https://mjorden.github.io/lifr/reference/edit_history.md)
+  : Inspect, save, or clear the edit history
+- [`lif_get_edits()`](https://mjorden.github.io/lifr/reference/lif_edits_rescue.md)
+  [`lif_set_edits()`](https://mjorden.github.io/lifr/reference/lif_edits_rescue.md)
+  : Carry the edit history across dplyr operations
+- [`new_edited_data()`](https://mjorden.github.io/lifr/reference/new_edited_data.md)
+  [`print(`*`<edited_data>`*`)`](https://mjorden.github.io/lifr/reference/new_edited_data.md)
+  : Tag a data frame as carrying edit-history provenance
+- [`qc_compare()`](https://mjorden.github.io/lifr/reference/qc_compare.md)
+  : Side-by-side comparison of input and edited profiles
+
+## Process and summarise
+
+- [`hp_correction()`](https://mjorden.github.io/lifr/reference/hp_correction.md)
+  : Remove the hydrostatic component from hydraulic push pressure
+- [`re_feet()`](https://mjorden.github.io/lifr/reference/re_feet.md) :
+  Integrate LIF signal over depth per boring (RE-feet)
+- [`lif_downsample()`](https://mjorden.github.io/lifr/reference/lif_downsample.md)
+  : Thin a LIF frame to a coarser depth spacing
+- [`summarize_lif()`](https://mjorden.github.io/lifr/reference/summarize_lif.md)
+  : Summarise a LIF channel for QA reporting
+
+## Plot
+
+- [`lif_plot()`](https://mjorden.github.io/lifr/reference/lif_plot.md) :
+  Plot the LIF depth profile of one boring
+- [`lif_plot_all()`](https://mjorden.github.io/lifr/reference/lif_plot_all.md)
+  : Plot LIF depth profiles for every boring
+- [`lif_overview()`](https://mjorden.github.io/lifr/reference/lif_overview.md)
+  : Multi-channel overview of one boring
+- [`boring_map()`](https://mjorden.github.io/lifr/reference/boring_map.md)
+  : Plan-view map of boring locations sized by peak LIF signal
+- [`depth_slice_map()`](https://mjorden.github.io/lifr/reference/depth_slice_map.md)
+  : Plan-view map of aggregated signal in a depth band
+- [`fetch_basemap()`](https://mjorden.github.io/lifr/reference/fetch_basemap.md)
+  : Fetch public-domain aerial imagery for a site
+- [`theme_lifr()`](https://mjorden.github.io/lifr/reference/theme_lifr.md)
+  : The lifr ggplot2 theme
+
+## Site charts
+
+- [`chart_max_response()`](https://mjorden.github.io/lifr/reference/chart_max_response.md)
+  : Chart: maximum LIF response by boring
+- [`chart_peak_by_boring()`](https://mjorden.github.io/lifr/reference/chart_peak_by_boring.md)
+  : Chart: peak signal per boring as a lollipop
+- [`chart_hp_histogram()`](https://mjorden.github.io/lifr/reference/chart_hp_histogram.md)
+  : Chart: distribution of hydraulic push pressure
+- [`chart_ec_histogram()`](https://mjorden.github.io/lifr/reference/chart_ec_histogram.md)
+  : Chart: distribution of electrical conductivity
+- [`export_site_charts()`](https://mjorden.github.io/lifr/reference/export_site_charts.md)
+  : Write the site summary charts as PNG files
+
+## Pipeline and report
+
+- [`process_site()`](https://mjorden.github.io/lifr/reference/process_site.md)
+  : Run the import -\> edit -\> correct -\> summarise -\> report
+  pipeline for a site
+
+- [`site_report()`](https://mjorden.github.io/lifr/reference/site_report.md)
+  :
+
+  Render the site report from a `lif_site` object
+
+# Articles
+
+### Workflows
+
+- [Introduction to lifr: from raw LIF logs to a site
+  report](https://mjorden.github.io/lifr/articles/intro.md):

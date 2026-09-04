@@ -1,0 +1,80 @@
+# lifr
+
+Import, plot, and report Laser-Induced Fluorescence (LIF) borehole logs
+from high-resolution site characterization surveys (UVOST, TarGOST, and
+similar direct-push fluorescence probes).
+
+- **Import** raw `.lif.dat.txt` logs into a tidy data frame that keeps
+  every channel the instrument recorded, with boring coordinates joined
+  from a locations file.
+- **Edit** known-bad depth intervals with a recorded audit trail that
+  travels with the data and prints in the report.
+- **Summarise and plot**: depth profiles, multi-channel overviews,
+  plan-view boring maps (optionally over USGS aerial imagery),
+  depth-slice maps, and site summary charts.
+- **Report**: a self-contained HTML site report with Summary, Data & QA,
+  Processing history, and Boring logs tabs, plus Markdown and PDF.
+
+## Installation
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("mjorden/lifr")
+```
+
+## Quick start
+
+``` r
+
+library(lifr)
+
+demo <- system.file("extdata", "demo", package = "lifr")
+lif <- lif_import(demo)              # logs + locations, all channels kept
+lif
+
+lif <- lif_zero_shallow(lif, depth = 1)                  # mask surface smear
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)  # mask an artifact
+edit_history(lif)                                        # the audit trail
+
+summarize_lif(lif)$by_boring
+lif_plot_all(lif, ncol = 4)
+boring_map(lif, use_instrument_color = TRUE)
+
+site <- process_site(demo, output_dir = "out", site_name = "Demo Site")
+site$reports$html
+```
+
+See
+[`vignette("intro", package = "lifr")`](https://mjorden.github.io/lifr/articles/intro.md)
+for a full walkthrough.
+
+## Data model
+
+Every importer returns a `lif_data` data frame with one row per depth
+reading:
+
+| Column | Meaning |
+|----|----|
+| `boring` | Boring name (from the log file name) |
+| `depth` | Depth below ground surface, ft |
+| `signal` | LIF response, %RE |
+| `easting`, `northing`, `msl` | From the locations file |
+| `ec`, `hp`, `color` | Optional channels: conductivity (mS/m), hydraulic push pressure (psi), emission-wavelength hex colour |
+| anything else | Every other source column, under a cleaned snake_case name |
+
+`%RE` is relative fluorescence, a screening proxy for the presence of
+fluorescent product. It is not a concentration and is not comparable to
+regulatory criteria; `lifr` never maps it onto such criteria.
+
+## Synthetic data
+
+The bundled demo site and everything in the documentation is generated
+by
+[`lif_simulate()`](https://mjorden.github.io/lifr/reference/lif_simulate.md).
+It has no relation to any real site. Use it to try the package before
+you have field data.
+
+## License
+
+MIT. See `LICENSE.md`.
