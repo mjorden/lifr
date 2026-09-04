@@ -85,7 +85,8 @@ test_that("the PDF path either renders or degrades with a warning", {
   expect_true("logs_pdf" %in% names(r))
   expect_true(file.exists(r$logs_pdf))
   # No warning other than a missing PDF toolchain is acceptable.
-  expect_true(all(grepl("PDF|LaTeX", msgs)))
+  expect_true(all(grepl("PDF|LaTeX", msgs)),
+              info = paste("unexpected warning(s):", paste(msgs, collapse = " | ")))
   if (is.null(r$pdf)) expect_true(any(grepl("PDF", msgs)))
   else expect_true(file.exists(r$pdf))
 })

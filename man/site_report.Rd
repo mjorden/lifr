@@ -42,8 +42,8 @@ shows every tab as its own section.
 \item \code{"md"}: a Markdown document that references its figures as PNG
 sidecars written next to it.
 \item \code{"pdf"}: the Markdown rendered through \code{rmarkdown} (pandoc plus a LaTeX
-distribution such as TinyTeX). Skipped with a warning when that
-toolchain is missing. Also writes \verb{<prefix>_logs.pdf}, one page per
+distribution providing \code{xelatex}, such as TinyTeX). Skipped with a
+warning when that toolchain is missing. Also writes \verb{<prefix>_logs.pdf}, one page per
 boring, through R's own \code{pdf()} device, which needs no LaTeX.
 }
 }

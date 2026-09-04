@@ -742,8 +742,8 @@ if(location.hash){activateTab(location.hash.slice(1));}
 #' * `"md"`: a Markdown document that references its figures as PNG
 #'   sidecars written next to it.
 #' * `"pdf"`: the Markdown rendered through `rmarkdown` (pandoc plus a LaTeX
-#'   distribution such as TinyTeX). Skipped with a warning when that
-#'   toolchain is missing. Also writes `<prefix>_logs.pdf`, one page per
+#'   distribution providing `xelatex`, such as TinyTeX). Skipped with a
+#'   warning when that toolchain is missing. Also writes `<prefix>_logs.pdf`, one page per
 #'   boring, through R's own `pdf()` device, which needs no LaTeX.
 #'
 #' @param x A `lif_site` object.
@@ -808,6 +808,12 @@ site_report <- function(x, formats = c("html", "md"), output_dir = ".",
   if (!requireNamespace("rmarkdown", quietly = TRUE) || !rmarkdown::pandoc_available()) {
     warning("site_report: PDF output needs the 'rmarkdown' package and pandoc; ",
             "skipping the PDF (other formats were written).", call. = FALSE)
+    return(NULL)
+  }
+  if (!nzchar(Sys.which("xelatex"))) {
+    warning("site_report: PDF output needs a LaTeX distribution with xelatex ",
+            "(e.g. tinytex::install_tinytex()); skipping the PDF (other formats ",
+            "were written).", call. = FALSE)
     return(NULL)
   }
   tryCatch({
