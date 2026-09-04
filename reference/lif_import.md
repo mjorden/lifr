@@ -58,6 +58,33 @@ file are dropped with a warning naming them; if no boring matches at all
 the import stops, because that is almost always a naming-format
 mismatch.
 
+## The survey folder
+
+    MySite/LIF/
+      LIF-01.lif.dat.txt    one tab-delimited log per boring, header row
+      LIF-02.lif.dat.txt
+      ...
+      locations.csv         boring, easting, northing, msl
+
+The boring name is the file name without its `.lif.dat.txt` suffix and
+must match the `boring` column of the locations file exactly.
+
+## Column handling
+
+Instrument headers vary between probes and firmware versions. These are
+recognised (case and punctuation ignored) and renamed: `Depth` to
+`depth`; `Signal` to `signal`; `EC.Value` / `EC` to `ec`; `HP.PresDown`
+/ `HP` to `hp`; `color` / `Color` to `color` (normalised to `#RRGGBB`).
+Any other column is kept under a cleaned snake_case name, so `EC.Depth`
+becomes `ec_depth` and `Detector 1 Max (uV)` becomes
+`detector_1_max_uv`. Files that disagree on their column set are bound
+with `NA` in the missing cells and a warning naming them.
+
+## See also
+
+[`vignette("data-format")`](https://mjorden.github.io/lifr/articles/data-format.md)
+for the file formats in detail.
+
 ## Examples
 
 ``` r
@@ -81,4 +108,21 @@ lif
 unique(lif$boring)
 #>  [1] "LIF-01" "LIF-02" "LIF-03" "LIF-04" "LIF-05" "LIF-06" "LIF-07" "LIF-08"
 #>  [9] "LIF-09" "LIF-10" "LIF-11" "LIF-12"
+names(lif)
+#> [1] "easting"  "northing" "depth"    "signal"   "boring"   "msl"      "ec"      
+#> [8] "hp"       "color"   
+
+# Logs only, before the coordinates arrive
+logs <- lif_import(demo, locations_file = FALSE, verbose = FALSE)
+"easting" %in% names(logs)
+#> [1] FALSE
+
+if (FALSE) { # \dontrun{
+# A project folder with an explicit locations table
+lif <- lif_import("C:/Projects/MySite/LIF",
+                  locations_file = "C:/Projects/MySite/survey/borings.csv")
+
+# Older headerless firmware exports
+lif <- lif_import("C:/Projects/OldSite/LIF", legacy = TRUE)
+} # }
 ```

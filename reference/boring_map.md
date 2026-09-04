@@ -115,6 +115,27 @@ boring_map(
 
 A ggplot object.
 
+## Reading the map
+
+- Marker **area** is proportional to peak signal (square-root scaling),
+  so the response pattern reads in greyscale.
+
+- A **hollow circle** is a non-detect: no reading above `nd_threshold`
+  in the depth window.
+
+- Marker **fill** is a neutral blue unless
+  `use_instrument_color = TRUE`, which uses the emission colour recorded
+  at the depth of peak signal. That colour is the product signature
+  analysts read in the field; the caption says so whenever it is in use.
+
+- The label under each marker is the boring name and its peak %RE.
+
+## See also
+
+[`depth_slice_map()`](https://mjorden.github.io/lifr/reference/depth_slice_map.md),
+[`fetch_basemap()`](https://mjorden.github.io/lifr/reference/fetch_basemap.md),
+[`vignette("plotting")`](https://mjorden.github.io/lifr/articles/plotting.md)
+
 ## Examples
 
 ``` r
@@ -122,6 +143,20 @@ demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 boring_map(lif)
 
+
+# Product-signature colours, a depth window, and figure metadata
 boring_map(lif, depth_min = 10, depth_max = 25, use_instrument_color = TRUE,
-           site_name = "Demo site")
+           site_name = "Demo site", figure_date = "2026-09-04",
+           preparer = "Field team", crs_label = "NAD83 / Louisiana South (ftUS)")
+
+
+# Uniform markers, no cartographic furniture
+boring_map(lif, size_by_signal = FALSE, north_arrow = FALSE, scale_bar = FALSE)
+
+
+if (FALSE) { # \dontrun{
+# Over aerial imagery (needs sf, png, and network access)
+bm <- fetch_basemap(lif, crs = 3452)
+boring_map(lif, basemap = bm, output_file = "boring_map.png")
+} # }
 ```

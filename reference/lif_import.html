@@ -97,6 +97,36 @@ in the locations file are dropped with a warning naming them; if no
 boring matches at all the import stops, because that is almost always a
 naming-format mismatch.</p>
     </div>
+    <div class="section level2">
+    <h2 id="the-survey-folder">The survey folder<a class="anchor" aria-label="anchor" href="#the-survey-folder"></a></h2>
+
+
+
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>MySite<span class="sc">/</span>LIF<span class="sc">/</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  LIF<span class="fl">-01.</span>lif.dat.txt    one tab<span class="sc">-</span>delimited log per boring, header row</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  LIF<span class="fl">-02.</span>lif.dat.txt</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  ...</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  locations.csv         boring, easting, northing, msl</span></code></pre><p></p></div>
+<p>The boring name is the file name without its <code>.lif.dat.txt</code> suffix and
+must match the <code>boring</code> column of the locations file exactly.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="column-handling">Column handling<a class="anchor" aria-label="anchor" href="#column-handling"></a></h2>
+
+
+<p>Instrument headers vary between probes and firmware versions. These are
+recognised (case and punctuation ignored) and renamed:
+<code>Depth</code> to <code>depth</code>; <code>Signal</code> to <code>signal</code>; <code>EC.Value</code> / <code>EC</code> to <code>ec</code>;
+<code>HP.PresDown</code> / <code>HP</code> to <code>hp</code>; <code>color</code> / <code>Color</code> to <code>color</code> (normalised to
+<code>#RRGGBB</code>). Any other column is kept under a cleaned snake_case name, so
+<code>EC.Depth</code> becomes <code>ec_depth</code> and <code>Detector 1 Max (uV)</code> becomes
+<code>detector_1_max_uv</code>. Files that disagree on their column set are bound
+with <code>NA</code> in the missing cells and a warning naming them.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
+    <div class="dont-index"><p><code><a href="../articles/data-format.html">vignette("data-format")</a></code> for the file formats in detail.</p></div>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -120,6 +150,23 @@ naming-format mismatch.</p>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">lif</span><span class="op">$</span><span class="va">boring</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "LIF-01" "LIF-02" "LIF-03" "LIF-04" "LIF-05" "LIF-06" "LIF-07" "LIF-08"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  [9] "LIF-09" "LIF-10" "LIF-11" "LIF-12"</span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "easting"  "northing" "depth"    "signal"   "boring"   "msl"      "ec"      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [8] "hp"       "color"   </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Logs only, before the coordinates arrive</span></span></span>
+<span class="r-in"><span><span class="va">logs</span> <span class="op">&lt;-</span> <span class="fu">lif_import</span><span class="op">(</span><span class="va">demo</span>, locations_file <span class="op">=</span> <span class="cn">FALSE</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="st">"easting"</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">logs</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span><span class="co"># A project folder with an explicit locations table</span></span></span>
+<span class="r-in"><span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu">lif_import</span><span class="op">(</span><span class="st">"C:/Projects/MySite/LIF"</span>,</span></span>
+<span class="r-in"><span>                  locations_file <span class="op">=</span> <span class="st">"C:/Projects/MySite/survey/borings.csv"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Older headerless firmware exports</span></span></span>
+<span class="r-in"><span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu">lif_import</span><span class="op">(</span><span class="st">"C:/Projects/OldSite/LIF"</span>, legacy <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

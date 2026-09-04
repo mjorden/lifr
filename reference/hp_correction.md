@@ -41,7 +41,7 @@ lif <- lif_import(demo, verbose = FALSE)
 lif <- hp_correction(lif, water_table = 6)
 edit_history(lif)
 #>                   timestamp            fn boring top bottom value
-#> 1 2026-09-04 20:34:28 +0000 hp_correction   <NA>  NA     NA    NA
+#> 1 2026-09-04 20:42:27 +0000 hp_correction   <NA>  NA     NA    NA
 #>   n_rows_changed                         notes
 #> 1           1489 gradient=0.433; water_table=6
 ```

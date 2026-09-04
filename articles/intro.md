@@ -1,14 +1,19 @@
-# Introduction to lifr: from raw LIF logs to a site report
+# Getting started with lifr
 
-Laser-Induced Fluorescence (LIF) probes such as UVOST and TarGOST are
-pushed into the ground and record a fluorescence response every fraction
-of a foot. Each boring produces one log file. This vignette walks
-through a complete session with `lifr`: import the logs, look at the
-data, mask a couple of artifacts with an audit trail, plot, and render
-the site report.
+## What LIF data looks like
 
-It uses the synthetic demo site that ships with the package, so every
-chunk runs on a fresh install.
+A Laser-Induced Fluorescence (LIF) probe is pushed into the ground on a
+direct-push rig. A laser excites the soil through a sapphire window and
+the probe records the fluorescence response every fraction of a foot.
+Petroleum products and other fluorescent non-aqueous phase liquids light
+up; clean soil mostly does not. The result for each boring is a log:
+depth against response, usually with a few companion channels such as
+electrical conductivity, hydraulic push pressure, and an emission colour
+that hints at the product type.
+
+A survey delivers one log file per boring plus a table of boring
+coordinates. `lifr` turns that folder into a data frame, helps you clean
+it, and renders plots and a report.
 
 ``` r
 
@@ -17,32 +22,16 @@ library(lifr)
 
 ## 1. Import
 
-A survey directory holds one `.lif.dat.txt` per boring plus a
-`locations.csv` with each boring’s easting, northing, and ground-surface
-elevation.
+Point
 [`lif_import()`](https://mjorden.github.io/lifr/reference/lif_import.md)
-reads everything, joins the coordinates, and keeps every column the
-instrument recorded.
+at the survey folder. It reads every `.lif.dat.txt`, finds the
+`locations.csv`, joins the coordinates, and returns one data frame with
+a row per depth reading.
 
 ``` r
 
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo)
-#> Importing 12 log file(s) from /home/runner/work/_temp/Library/lifr/extdata/demo
-#>   reading LIF-01.lif.dat.txt
-#>   reading LIF-02.lif.dat.txt
-#>   reading LIF-03.lif.dat.txt
-#>   reading LIF-04.lif.dat.txt
-#>   reading LIF-05.lif.dat.txt
-#>   reading LIF-06.lif.dat.txt
-#>   reading LIF-07.lif.dat.txt
-#>   reading LIF-08.lif.dat.txt
-#>   reading LIF-09.lif.dat.txt
-#>   reading LIF-10.lif.dat.txt
-#>   reading LIF-11.lif.dat.txt
-#>   reading LIF-12.lif.dat.txt
-#> Locations file: locations.csv
-#> Imported 1489 row(s) across 12 boring(s).
 lif
 #> <lif_data> 12 boring(s), 1489 sample(s), depth 0.2-37.5 ft, 0 edit(s)
 #>   channels: signal, ec, hp, color
@@ -60,13 +49,29 @@ lif
 #> # ... 1479 more row(s)
 ```
 
-The known channels are canonicalised to `depth`, `signal`, `ec`, `hp`,
-and `color`; any other column in the source file is carried through
-under a cleaned name.
-[`lif_read()`](https://mjorden.github.io/lifr/reference/lif_read.md)
-reads a single file the same way, without the locations join.
+Every column the instrument recorded is kept. The ones `lifr`
+understands are renamed to a fixed set:
+
+| Column | Meaning | Units |
+|----|----|----|
+| `boring` | Boring name, from the file name |  |
+| `depth` | Depth below ground surface | ft |
+| `signal` | LIF response | %RE |
+| `easting`, `northing` | Coordinates from the locations file | ft (projected) |
+| `msl` | Ground-surface elevation from the locations file | ft |
+| `ec` | Electrical conductivity, when logged | mS/m |
+| `hp` | Hydraulic push pressure, when logged | psi |
+| `color` | Emission-wavelength hex colour, when logged |  |
+
+Anything else keeps a cleaned snake_case version of its header. See
+[`vignette("data-format")`](https://mjorden.github.io/lifr/articles/data-format.md)
+for the file formats, legacy layouts, and what happens when a boring is
+missing from the locations file.
 
 ## 2. Summarise
+
+[`summarize_lif()`](https://mjorden.github.io/lifr/reference/summarize_lif.md)
+returns the standard QA tables.
 
 ``` r
 
@@ -106,53 +111,54 @@ qa$by_threshold
 #> 5          16.66667
 ```
 
-`%RE` is relative fluorescence, a screening proxy for the presence of
-fluorescent product. It is not a concentration, and `lifr` never
-compares it to regulatory criteria.
-
-## 3. Edit with an audit trail
-
-Surface smear and known artifacts are masked with the editor family.
-Every call appends a row to the frame’s edit history.
+A quick way to see which borings dominate the site:
 
 ``` r
 
-lif <- lif_zero_shallow(lif, depth = 1)
-#> [lif_zero_shallow] zeroed 48 row(s) above 1 ft across 12 boring(s)
-lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
-#> [lif_editor] LIF-03: zeroed 9 row(s) (20-22 ft)
-lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)
-#> [lif_keep] LIF-02: zeroed 55 row(s) outside 6-28 ft
-lif <- hp_correction(lif, water_table = 6)
-tail(edit_history(lif), 4)
-#>                    timestamp            fn boring top bottom value
-#> 12 2026-09-04 20:34:46 +0000    lif_editor LIF-12   0      1     0
-#> 13 2026-09-04 20:34:46 +0000    lif_editor LIF-03  20     22     0
-#> 14 2026-09-04 20:34:46 +0000      lif_keep LIF-02   6     28     0
-#> 15 2026-09-04 20:34:46 +0000 hp_correction   <NA>  NA     NA    NA
-#>    n_rows_changed                                           notes
-#> 12              4                                            <NA>
-#> 13              9                                            <NA>
-#> 14             55 kept 6-28 ft; zeroed rows outside these windows
-#> 15           1489                   gradient=0.433; water_table=6
+chart_peak_by_boring(lif)
 ```
 
-The same edits can live in a CSV and be applied with
-[`lif_apply_edits()`](https://mjorden.github.io/lifr/reference/lif_apply_edits.md);
-a `boring` of `"*"` applies a row to every boring.
+![](intro_files/figure-html/peaks-1.png)
 
-[`qc_compare()`](https://mjorden.github.io/lifr/reference/qc_compare.md)
-shows what changed:
+## 3. Clean up
+
+Most sites need a little masking before the numbers mean anything: the
+top foot or so is surface smear, and a rod change or a fluorescent
+mineral seam can leave a spike that is not product. The editor family
+zeroes those depth intervals and records every call.
+
+``` r
+
+lif <- lif_zero_shallow(lif, depth = 1)                   # all borings
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)   # one interval
+lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)      # keep one clean window
+tail(edit_history(lif), 3)
+#>                    timestamp         fn boring top bottom value n_rows_changed
+#> 12 2026-09-04 20:42:51 +0000 lif_editor LIF-12   0      1     0              4
+#> 13 2026-09-04 20:42:51 +0000 lif_editor LIF-03  20     22     0              9
+#> 14 2026-09-04 20:42:51 +0000   lif_keep LIF-02   6     28     0             55
+#>                                              notes
+#> 12                                            <NA>
+#> 13                                            <NA>
+#> 14 kept 6-28 ft; zeroed rows outside these windows
+```
+
+Compare before and after:
 
 ``` r
 
 raw <- lif_import(demo, verbose = FALSE)
 plots <- qc_compare(raw, lif)
-#> qc_compare: 12 boring(s) with changes plotted, 0 unchanged.
 plots[["LIF-02"]]
 ```
 
 ![](intro_files/figure-html/qc-1.png)
+
+The edit history travels with the data frame and is printed in the site
+report.
+[`vignette("editing")`](https://mjorden.github.io/lifr/articles/editing.md)
+covers edit plans in a CSV, the keep-versus-delete choice, and how to
+carry the history through a dplyr pipeline.
 
 ## 4. Plot
 
@@ -161,82 +167,84 @@ plots[["LIF-02"]]
 lif_plot(lif, "LIF-11")
 ```
 
-![](intro_files/figure-html/plots-1.png)
+![](intro_files/figure-html/plot-one-1.png)
 
 ``` r
 
 lif_plot_all(lif, ncol = 4)
 ```
 
-![](intro_files/figure-html/plots-2.png)
+![](intro_files/figure-html/plot-all-1.png)
 
 ``` r
 
 lif_overview(lif, "LIF-11")
 ```
 
-![](intro_files/figure-html/plots-3.png)
+![](intro_files/figure-html/overview-1.png)
 
 ``` r
 
-boring_map(lif, use_instrument_color = TRUE)
+boring_map(lif, use_instrument_color = TRUE, site_name = "Demo site")
 ```
 
-![](intro_files/figure-html/plots-4.png)
+![](intro_files/figure-html/map-1.png)
 
-``` r
-
-depth_slice_map(lif, depth_range = c(12, 20))
-```
-
-![](intro_files/figure-html/plots-5.png)
-
-``` r
-
-chart_max_response(lif)
-```
-
-![](intro_files/figure-html/plots-6.png)
-
-With a projected CRS and network access,
-[`fetch_basemap()`](https://mjorden.github.io/lifr/reference/fetch_basemap.md)
-pulls a public domain USGS imagery tile to draw under
-[`boring_map()`](https://mjorden.github.io/lifr/reference/boring_map.md).
+[`vignette("plotting")`](https://mjorden.github.io/lifr/articles/plotting.md)
+is a gallery of every plot and its options, including depth-slice maps,
+the site charts, and aerial-imagery basemaps.
 
 ## 5. Report
 
 [`process_site()`](https://mjorden.github.io/lifr/reference/process_site.md)
-runs the whole pipeline in one call and writes a self-contained HTML
-report (Summary, Data & QA, Processing history, and Boring logs tabs), a
-Markdown report, and, when pandoc and LaTeX are available, a PDF plus a
-one-page-per-boring logs PDF.
+runs the whole pipeline in one call: import, an optional edit plan,
+corrections, summary, charts, and the report.
 
 ``` r
 
 out <- tempfile("site")
-site <- process_site(demo, output_dir = out, site_name = "Demo Site",
-                     corrections = list(zero_shallow = 1, hp = list(water_table = 6)),
+site <- process_site(demo, output_dir = out, site_name = "Demo site",
+                     corrections = list(zero_shallow = 1),
                      report_formats = c("html", "md"), quiet = TRUE)
 site
-#> <lif_site> Demo Site
-#>   12 boring(s), 1489 sample(s), 13 edit(s), 4 chart(s)
-#>   report(s): /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.html, /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.md
+#> <lif_site> Demo site
+#>   12 boring(s), 1489 sample(s), 12 edit(s), 4 chart(s)
+#>   report(s): /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.html, /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.md
 basename(unlist(site$reports))
 #> [1] "demo_site_report.html" "demo_site_report.md"
 ```
 
-## 6. Try it on your own data
+The HTML report is one self-contained file with four tabs: Summary, Data
+& QA, Processing history, and Boring logs.
+[`vignette("reporting")`](https://mjorden.github.io/lifr/articles/reporting.md)
+walks through each tab and the other output files.
+
+## 6. Your own data
 
 ``` r
 
-lif <- lif_import("C:/Projects/MySite/LIF")
-lif <- lif_apply_edits(lif, "C:/Projects/MySite/edits.csv")
+lif  <- lif_import("C:/Projects/MySite/LIF")
+lif  <- lif_apply_edits(lif, "C:/Projects/MySite/edits.csv")
 site <- process_site("C:/Projects/MySite/LIF",
-                     edits = "C:/Projects/MySite/edits.csv",
+                     edits      = "C:/Projects/MySite/edits.csv",
                      output_dir = "C:/Projects/MySite/out",
-                     crs = 3452)      # your State Plane EPSG code
+                     site_name  = "My Site",
+                     crs        = 3452)   # State Plane EPSG code, for imagery
 ```
 
 No field data yet?
 [`lif_simulate()`](https://mjorden.github.io/lifr/reference/lif_simulate.md)
-writes a plausible synthetic site.
+writes a plausible synthetic site:
+
+``` r
+
+lif_simulate(n_borings = 8, dir = "C:/Projects/Practice/LIF")
+```
+
+## A note on %RE
+
+LIF response is relative fluorescence, expressed as a percentage of a
+reference emitter. It tells you where fluorescent product is likely
+present and how strongly it fluoresces there. It is not a concentration
+and is not comparable to regulatory criteria; `lifr` never maps it onto
+such criteria, and every chart and report carries that disclosure.

@@ -5,12 +5,12 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Introduction to lifr: from raw LIF logs to a site report • lifr</title>
+<title>Getting started with lifr • lifr</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Introduction to lifr: from raw LIF logs to a site report">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Getting started with lifr">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -48,7 +48,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Introduction to lifr: from raw LIF logs to a site report</h1>
+      <h1>Getting started with lifr</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/mjorden/lifr/blob/main/vignettes/intro.Rmd" class="external-link"><code>vignettes/intro.Rmd</code></a></small>
@@ -57,42 +57,33 @@
 
     
     
-<p>Laser-Induced Fluorescence (LIF) probes such as UVOST and TarGOST are
-pushed into the ground and record a fluorescence response every fraction
-of a foot. Each boring produces one log file. This vignette walks
-through a complete session with <code>lifr</code>: import the logs, look
-at the data, mask a couple of artifacts with an audit trail, plot, and
-render the site report.</p>
-<p>It uses the synthetic demo site that ships with the package, so every
-chunk runs on a fresh install.</p>
+<div class="section level2">
+<h2 id="what-lif-data-looks-like">What LIF data looks like<a class="anchor" aria-label="anchor" href="#what-lif-data-looks-like"></a>
+</h2>
+<p>A Laser-Induced Fluorescence (LIF) probe is pushed into the ground on
+a direct-push rig. A laser excites the soil through a sapphire window
+and the probe records the fluorescence response every fraction of a
+foot. Petroleum products and other fluorescent non-aqueous phase liquids
+light up; clean soil mostly does not. The result for each boring is a
+log: depth against response, usually with a few companion channels such
+as electrical conductivity, hydraulic push pressure, and an emission
+colour that hints at the product type.</p>
+<p>A survey delivers one log file per boring plus a table of boring
+coordinates. <code>lifr</code> turns that folder into a data frame,
+helps you clean it, and renders plots and a report.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mjorden/lifr" class="external-link">lifr</a></span><span class="op">)</span></span></code></pre></div>
+</div>
 <div class="section level2">
 <h2 id="import">1. Import<a class="anchor" aria-label="anchor" href="#import"></a>
 </h2>
-<p>A survey directory holds one <code>.lif.dat.txt</code> per boring
-plus a <code>locations.csv</code> with each boring’s easting, northing,
-and ground-surface elevation. <code><a href="../reference/lif_import.html">lif_import()</a></code> reads
-everything, joins the coordinates, and keeps every column the instrument
-recorded.</p>
+<p>Point <code><a href="../reference/lif_import.html">lif_import()</a></code> at the survey folder. It reads every
+<code>.lif.dat.txt</code>, finds the <code>locations.csv</code>, joins
+the coordinates, and returns one data frame with a row per depth
+reading.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">demo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"demo"</span>, package <span class="op">=</span> <span class="st">"lifr"</span><span class="op">)</span></span>
 <span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_import.html">lif_import</a></span><span class="op">(</span><span class="va">demo</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Importing 12 log file(s) from /home/runner/work/_temp/Library/lifr/extdata/demo</span></span>
-<span><span class="co">#&gt;   reading LIF-01.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-02.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-03.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-04.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-05.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-06.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-07.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-08.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-09.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-10.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-11.lif.dat.txt</span></span>
-<span><span class="co">#&gt;   reading LIF-12.lif.dat.txt</span></span>
-<span><span class="co">#&gt; Locations file: locations.csv</span></span>
-<span><span class="co">#&gt; Imported 1489 row(s) across 12 boring(s).</span></span>
 <span><span class="va">lif</span></span>
 <span><span class="co">#&gt; &lt;lif_data&gt; 12 boring(s), 1489 sample(s), depth 0.2-37.5 ft, 0 edit(s)</span></span>
 <span><span class="co">#&gt;   channels: signal, ec, hp, color</span></span>
@@ -108,15 +99,73 @@ recorded.</p>
 <span><span class="co">#&gt; 9   1014.5   2017.9  2.25  0.050 LIF-01 149.6 10.04 2.86 #B0B0B0</span></span>
 <span><span class="co">#&gt; 10  1014.5   2017.9  2.50  0.003 LIF-01 149.6  9.46 3.01 #B0B0B0</span></span>
 <span><span class="co">#&gt; # ... 1479 more row(s)</span></span></code></pre></div>
-<p>The known channels are canonicalised to <code>depth</code>,
-<code>signal</code>, <code>ec</code>, <code>hp</code>, and
-<code>color</code>; any other column in the source file is carried
-through under a cleaned name. <code><a href="../reference/lif_read.html">lif_read()</a></code> reads a single
-file the same way, without the locations join.</p>
+<p>Every column the instrument recorded is kept. The ones
+<code>lifr</code> understands are renamed to a fixed set:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Column</th>
+<th>Meaning</th>
+<th>Units</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>boring</code></td>
+<td>Boring name, from the file name</td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>depth</code></td>
+<td>Depth below ground surface</td>
+<td>ft</td>
+</tr>
+<tr class="odd">
+<td><code>signal</code></td>
+<td>LIF response</td>
+<td>%RE</td>
+</tr>
+<tr class="even">
+<td>
+<code>easting</code>, <code>northing</code>
+</td>
+<td>Coordinates from the locations file</td>
+<td>ft (projected)</td>
+</tr>
+<tr class="odd">
+<td><code>msl</code></td>
+<td>Ground-surface elevation from the locations file</td>
+<td>ft</td>
+</tr>
+<tr class="even">
+<td><code>ec</code></td>
+<td>Electrical conductivity, when logged</td>
+<td>mS/m</td>
+</tr>
+<tr class="odd">
+<td><code>hp</code></td>
+<td>Hydraulic push pressure, when logged</td>
+<td>psi</td>
+</tr>
+<tr class="even">
+<td><code>color</code></td>
+<td>Emission-wavelength hex colour, when logged</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Anything else keeps a cleaned snake_case version of its header. See
+<code><a href="../articles/data-format.html">vignette("data-format")</a></code> for the file formats, legacy
+layouts, and what happens when a boring is missing from the locations
+file.</p>
 </div>
 <div class="section level2">
 <h2 id="summarise">2. Summarise<a class="anchor" aria-label="anchor" href="#summarise"></a>
 </h2>
+<p><code><a href="../reference/summarize_lif.html">summarize_lif()</a></code> returns the standard QA tables.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">qa</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarize_lif.html">summarize_lif</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span></span>
 <span><span class="va">qa</span><span class="op">$</span><span class="va">overview</span></span>
@@ -152,101 +201,108 @@ file the same way, without the locations join.</p>
 <span><span class="co">#&gt; 3          66.66667</span></span>
 <span><span class="co">#&gt; 4          58.33333</span></span>
 <span><span class="co">#&gt; 5          16.66667</span></span></code></pre></div>
-<p><code>%RE</code> is relative fluorescence, a screening proxy for the
-presence of fluorescent product. It is not a concentration, and
-<code>lifr</code> never compares it to regulatory criteria.</p>
+<p>A quick way to see which borings dominate the site:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/chart_peak_by_boring.html">chart_peak_by_boring</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span></span></code></pre></div>
+<p><img src="intro_files/figure-html/peaks-1.png" class="r-plt" alt="" width="504"></p>
 </div>
 <div class="section level2">
-<h2 id="edit-with-an-audit-trail">3. Edit with an audit trail<a class="anchor" aria-label="anchor" href="#edit-with-an-audit-trail"></a>
+<h2 id="clean-up">3. Clean up<a class="anchor" aria-label="anchor" href="#clean-up"></a>
 </h2>
-<p>Surface smear and known artifacts are masked with the editor family.
-Every call appends a row to the frame’s edit history.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_zero_shallow.html">lif_zero_shallow</a></span><span class="op">(</span><span class="va">lif</span>, depth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [lif_zero_shallow] zeroed 48 row(s) above 1 ft across 12 boring(s)</span></span>
-<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_editor.html">lif_editor</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-03"</span>, top <span class="op">=</span> <span class="fl">20</span>, bottom <span class="op">=</span> <span class="fl">22</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [lif_editor] LIF-03: zeroed 9 row(s) (20-22 ft)</span></span>
-<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_keep.html">lif_keep</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-02"</span>, top <span class="op">=</span> <span class="fl">6</span>, bottom <span class="op">=</span> <span class="fl">28</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [lif_keep] LIF-02: zeroed 55 row(s) outside 6-28 ft</span></span>
-<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hp_correction.html">hp_correction</a></span><span class="op">(</span><span class="va">lif</span>, water_table <span class="op">=</span> <span class="fl">6</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">tail</a></span><span class="op">(</span><span class="fu"><a href="../reference/edit_history.html">edit_history</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                    timestamp            fn boring top bottom value</span></span>
-<span><span class="co">#&gt; 12 2026-09-04 20:34:46 +0000    lif_editor LIF-12   0      1     0</span></span>
-<span><span class="co">#&gt; 13 2026-09-04 20:34:46 +0000    lif_editor LIF-03  20     22     0</span></span>
-<span><span class="co">#&gt; 14 2026-09-04 20:34:46 +0000      lif_keep LIF-02   6     28     0</span></span>
-<span><span class="co">#&gt; 15 2026-09-04 20:34:46 +0000 hp_correction   &lt;NA&gt;  NA     NA    NA</span></span>
-<span><span class="co">#&gt;    n_rows_changed                                           notes</span></span>
-<span><span class="co">#&gt; 12              4                                            &lt;NA&gt;</span></span>
-<span><span class="co">#&gt; 13              9                                            &lt;NA&gt;</span></span>
-<span><span class="co">#&gt; 14             55 kept 6-28 ft; zeroed rows outside these windows</span></span>
-<span><span class="co">#&gt; 15           1489                   gradient=0.433; water_table=6</span></span></code></pre></div>
-<p>The same edits can live in a CSV and be applied with
-<code><a href="../reference/lif_apply_edits.html">lif_apply_edits()</a></code>; a <code>boring</code> of
-<code>"*"</code> applies a row to every boring.</p>
-<p><code><a href="../reference/qc_compare.html">qc_compare()</a></code> shows what changed:</p>
+<p>Most sites need a little masking before the numbers mean anything:
+the top foot or so is surface smear, and a rod change or a fluorescent
+mineral seam can leave a spike that is not product. The editor family
+zeroes those depth intervals and records every call.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_zero_shallow.html">lif_zero_shallow</a></span><span class="op">(</span><span class="va">lif</span>, depth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>                   <span class="co"># all borings</span></span>
+<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_editor.html">lif_editor</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-03"</span>, top <span class="op">=</span> <span class="fl">20</span>, bottom <span class="op">=</span> <span class="fl">22</span><span class="op">)</span>   <span class="co"># one interval</span></span>
+<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_keep.html">lif_keep</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-02"</span>, top <span class="op">=</span> <span class="fl">6</span>, bottom <span class="op">=</span> <span class="fl">28</span><span class="op">)</span>      <span class="co"># keep one clean window</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">tail</a></span><span class="op">(</span><span class="fu"><a href="../reference/edit_history.html">edit_history</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                    timestamp         fn boring top bottom value n_rows_changed</span></span>
+<span><span class="co">#&gt; 12 2026-09-04 20:42:51 +0000 lif_editor LIF-12   0      1     0              4</span></span>
+<span><span class="co">#&gt; 13 2026-09-04 20:42:51 +0000 lif_editor LIF-03  20     22     0              9</span></span>
+<span><span class="co">#&gt; 14 2026-09-04 20:42:51 +0000   lif_keep LIF-02   6     28     0             55</span></span>
+<span><span class="co">#&gt;                                              notes</span></span>
+<span><span class="co">#&gt; 12                                            &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 13                                            &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 14 kept 6-28 ft; zeroed rows outside these windows</span></span></code></pre></div>
+<p>Compare before and after:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">raw</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_import.html">lif_import</a></span><span class="op">(</span><span class="va">demo</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="va">plots</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/qc_compare.html">qc_compare</a></span><span class="op">(</span><span class="va">raw</span>, <span class="va">lif</span><span class="op">)</span></span>
-<span><span class="co">#&gt; qc_compare: 12 boring(s) with changes plotted, 0 unchanged.</span></span>
 <span><span class="va">plots</span><span class="op">[[</span><span class="st">"LIF-02"</span><span class="op">]</span><span class="op">]</span></span></code></pre></div>
 <p><img src="intro_files/figure-html/qc-1.png" class="r-plt" alt="" width="504"></p>
+<p>The edit history travels with the data frame and is printed in the
+site report. <code><a href="../articles/editing.html">vignette("editing")</a></code> covers edit plans in a
+CSV, the keep-versus-delete choice, and how to carry the history through
+a dplyr pipeline.</p>
 </div>
 <div class="section level2">
 <h2 id="plot">4. Plot<a class="anchor" aria-label="anchor" href="#plot"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_plot.html">lif_plot</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-11"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-1.png" class="r-plt" alt="" width="504"></p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_plot_all.html">lif_plot_all</a></span><span class="op">(</span><span class="va">lif</span>, ncol <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-2.png" class="r-plt" alt="" width="504"></p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_plot.html">lif_plot</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-11"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="intro_files/figure-html/plot-one-1.png" class="r-plt" alt="" width="504"></p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_overview.html">lif_overview</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-11"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-3.png" class="r-plt" alt="" width="504"></p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_plot_all.html">lif_plot_all</a></span><span class="op">(</span><span class="va">lif</span>, ncol <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
+<p><img src="intro_files/figure-html/plot-all-1.png" class="r-plt" alt="" width="504"></p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/boring_map.html">boring_map</a></span><span class="op">(</span><span class="va">lif</span>, use_instrument_color <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-4.png" class="r-plt" alt="" width="504"></p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_overview.html">lif_overview</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"LIF-11"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="intro_files/figure-html/overview-1.png" class="r-plt" alt="" width="504"></p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/depth_slice_map.html">depth_slice_map</a></span><span class="op">(</span><span class="va">lif</span>, depth_range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">12</span>, <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-5.png" class="r-plt" alt="" width="504"></p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/chart_max_response.html">chart_max_response</a></span><span class="op">(</span><span class="va">lif</span><span class="op">)</span></span></code></pre></div>
-<p><img src="intro_files/figure-html/plots-6.png" class="r-plt" alt="" width="504"></p>
-<p>With a projected CRS and network access, <code><a href="../reference/fetch_basemap.html">fetch_basemap()</a></code>
-pulls a public domain USGS imagery tile to draw under
-<code><a href="../reference/boring_map.html">boring_map()</a></code>.</p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/boring_map.html">boring_map</a></span><span class="op">(</span><span class="va">lif</span>, use_instrument_color <span class="op">=</span> <span class="cn">TRUE</span>, site_name <span class="op">=</span> <span class="st">"Demo site"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="intro_files/figure-html/map-1.png" class="r-plt" alt="" width="504"></p>
+<p><code><a href="../articles/plotting.html">vignette("plotting")</a></code> is a gallery of every plot and its
+options, including depth-slice maps, the site charts, and aerial-imagery
+basemaps.</p>
 </div>
 <div class="section level2">
 <h2 id="report">5. Report<a class="anchor" aria-label="anchor" href="#report"></a>
 </h2>
-<p><code><a href="../reference/process_site.html">process_site()</a></code> runs the whole pipeline in one call and
-writes a self-contained HTML report (Summary, Data &amp; QA, Processing
-history, and Boring logs tabs), a Markdown report, and, when pandoc and
-LaTeX are available, a PDF plus a one-page-per-boring logs PDF.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<p><code><a href="../reference/process_site.html">process_site()</a></code> runs the whole pipeline in one call:
+import, an optional edit plan, corrections, summary, charts, and the
+report.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"site"</span><span class="op">)</span></span>
-<span><span class="va">site</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/process_site.html">process_site</a></span><span class="op">(</span><span class="va">demo</span>, output_dir <span class="op">=</span> <span class="va">out</span>, site_name <span class="op">=</span> <span class="st">"Demo Site"</span>,</span>
-<span>                     corrections <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>zero_shallow <span class="op">=</span> <span class="fl">1</span>, hp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>water_table <span class="op">=</span> <span class="fl">6</span><span class="op">)</span><span class="op">)</span>,</span>
+<span><span class="va">site</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/process_site.html">process_site</a></span><span class="op">(</span><span class="va">demo</span>, output_dir <span class="op">=</span> <span class="va">out</span>, site_name <span class="op">=</span> <span class="st">"Demo site"</span>,</span>
+<span>                     corrections <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>zero_shallow <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
 <span>                     report_formats <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"html"</span>, <span class="st">"md"</span><span class="op">)</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">site</span></span>
-<span><span class="co">#&gt; &lt;lif_site&gt; Demo Site</span></span>
-<span><span class="co">#&gt;   12 boring(s), 1489 sample(s), 13 edit(s), 4 chart(s)</span></span>
-<span><span class="co">#&gt;   report(s): /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.html, /tmp/RtmpdpbzV6/site1faf133edd51/demo_site_report.md</span></span>
+<span><span class="co">#&gt; &lt;lif_site&gt; Demo site</span></span>
+<span><span class="co">#&gt;   12 boring(s), 1489 sample(s), 12 edit(s), 4 chart(s)</span></span>
+<span><span class="co">#&gt;   report(s): /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.html, /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.md</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">basename</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">site</span><span class="op">$</span><span class="va">reports</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "demo_site_report.html" "demo_site_report.md"</span></span></code></pre></div>
+<p>The HTML report is one self-contained file with four tabs: Summary,
+Data &amp; QA, Processing history, and Boring logs.
+<code><a href="../articles/reporting.html">vignette("reporting")</a></code> walks through each tab and the other
+output files.</p>
 </div>
 <div class="section level2">
-<h2 id="try-it-on-your-own-data">6. Try it on your own data<a class="anchor" aria-label="anchor" href="#try-it-on-your-own-data"></a>
+<h2 id="your-own-data">6. Your own data<a class="anchor" aria-label="anchor" href="#your-own-data"></a>
 </h2>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_import.html">lif_import</a></span><span class="op">(</span><span class="st">"C:/Projects/MySite/LIF"</span><span class="op">)</span></span>
-<span><span class="va">lif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_apply_edits.html">lif_apply_edits</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"C:/Projects/MySite/edits.csv"</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lif</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_import.html">lif_import</a></span><span class="op">(</span><span class="st">"C:/Projects/MySite/LIF"</span><span class="op">)</span></span>
+<span><span class="va">lif</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lif_apply_edits.html">lif_apply_edits</a></span><span class="op">(</span><span class="va">lif</span>, <span class="st">"C:/Projects/MySite/edits.csv"</span><span class="op">)</span></span>
 <span><span class="va">site</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/process_site.html">process_site</a></span><span class="op">(</span><span class="st">"C:/Projects/MySite/LIF"</span>,</span>
-<span>                     edits <span class="op">=</span> <span class="st">"C:/Projects/MySite/edits.csv"</span>,</span>
+<span>                     edits      <span class="op">=</span> <span class="st">"C:/Projects/MySite/edits.csv"</span>,</span>
 <span>                     output_dir <span class="op">=</span> <span class="st">"C:/Projects/MySite/out"</span>,</span>
-<span>                     crs <span class="op">=</span> <span class="fl">3452</span><span class="op">)</span>      <span class="co"># your State Plane EPSG code</span></span></code></pre></div>
+<span>                     site_name  <span class="op">=</span> <span class="st">"My Site"</span>,</span>
+<span>                     crs        <span class="op">=</span> <span class="fl">3452</span><span class="op">)</span>   <span class="co"># State Plane EPSG code, for imagery</span></span></code></pre></div>
 <p>No field data yet? <code><a href="../reference/lif_simulate.html">lif_simulate()</a></code> writes a plausible
-synthetic site.</p>
+synthetic site:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lif_simulate.html">lif_simulate</a></span><span class="op">(</span>n_borings <span class="op">=</span> <span class="fl">8</span>, dir <span class="op">=</span> <span class="st">"C:/Projects/Practice/LIF"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="a-note-on-re">A note on %RE<a class="anchor" aria-label="anchor" href="#a-note-on-re"></a>
+</h2>
+<p>LIF response is relative fluorescence, expressed as a percentage of a
+reference emitter. It tells you where fluorescent product is likely
+present and how strongly it fluoresces there. It is not a concentration
+and is not comparable to regulatory criteria; <code>lifr</code> never
+maps it onto such criteria, and every chart and report carries that
+disclosure.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
