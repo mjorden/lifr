@@ -1,0 +1,16 @@
+test_that("lif_simulate returns a classed frame or writes an importable directory", {
+  x <- lif_simulate(n_borings = 5, seed = 3)
+  expect_s3_class(x, "lif_data")
+  expect_equal(length(unique(x$boring)), 5)
+  expect_true(all(c("easting", "northing", "msl", "ec", "hp", "color") %in% names(x)))
+  expect_true(all(x$signal >= 0))
+  expect_identical(x$signal, lif_simulate(n_borings = 5, seed = 3)$signal)
+
+  d <- withr::local_tempdir()
+  lif_simulate(n_borings = 3, dir = d, verbose = FALSE)
+  expect_length(list.files(d, "lif\\.dat\\.txt$"), 3)
+  expect_true(file.exists(file.path(d, "locations.csv")))
+  y <- lif_import(d, verbose = FALSE)
+  expect_equal(length(unique(y$boring)), 3)
+  expect_error(lif_simulate(n_borings = 0), ">= 1")
+})

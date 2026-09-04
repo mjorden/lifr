@@ -1,0 +1,77 @@
+url: https://mjorden.github.io/lifr/
+
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#6E7F4E"
+    bg: "#ffffff"
+    fg: "#1a1a1a"
+
+home:
+  title: lifr
+  description: >
+    Import, plot, and report Laser-Induced Fluorescence (LIF) borehole logs.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [github]
+
+reference:
+  - title: Import
+    desc: Read raw LIF logs and boring locations into a `lif_data` frame.
+    contents:
+      - lif_import
+      - lif_read
+      - read_locations
+      - lif_data
+      - compat_rename_legacy
+      - lif_simulate
+
+  - title: Edit with an audit trail
+    contents:
+      - lif_editor
+      - lif_editor_bulk
+      - lif_keep
+      - lif_zero_shallow
+      - lif_zero_below_threshold
+      - lif_apply_edits
+      - edit_history
+      - lif_edits_rescue
+      - new_edited_data
+      - qc_compare
+
+  - title: Process and summarise
+    contents:
+      - hp_correction
+      - re_feet
+      - lif_downsample
+      - summarize_lif
+
+  - title: Plot
+    contents:
+      - lif_plot
+      - lif_plot_all
+      - lif_overview
+      - boring_map
+      - depth_slice_map
+      - fetch_basemap
+      - theme_lifr
+
+  - title: Site charts
+    contents:
+      - chart_max_response
+      - chart_peak_by_boring
+      - chart_hp_histogram
+      - chart_ec_histogram
+      - export_site_charts
+
+  - title: Pipeline and report
+    contents:
+      - process_site
+      - site_report
+
+articles:
+  - title: Workflows
+    contents:
+      - intro

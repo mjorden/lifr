@@ -1,0 +1,124 @@
+---
+title: "Introduction to lifr: from raw LIF logs to a site report"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to lifr: from raw LIF logs to a site report}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 5, dpi = 72)
+```
+
+Laser-Induced Fluorescence (LIF) probes such as UVOST and TarGOST are pushed
+into the ground and record a fluorescence response every fraction of a foot.
+Each boring produces one log file. This vignette walks through a complete
+session with `lifr`: import the logs, look at the data, mask a couple of
+artifacts with an audit trail, plot, and render the site report.
+
+It uses the synthetic demo site that ships with the package, so every chunk
+runs on a fresh install.
+
+```{r setup}
+library(lifr)
+```
+
+## 1. Import
+
+A survey directory holds one `.lif.dat.txt` per boring plus a
+`locations.csv` with each boring's easting, northing, and ground-surface
+elevation. `lif_import()` reads everything, joins the coordinates, and keeps
+every column the instrument recorded.
+
+```{r import}
+demo <- system.file("extdata", "demo", package = "lifr")
+lif <- lif_import(demo)
+lif
+```
+
+The known channels are canonicalised to `depth`, `signal`, `ec`, `hp`, and
+`color`; any other column in the source file is carried through under a
+cleaned name. `lif_read()` reads a single file the same way, without the
+locations join.
+
+## 2. Summarise
+
+```{r summarize}
+qa <- summarize_lif(lif)
+qa$overview
+head(qa$by_boring)
+qa$by_threshold
+```
+
+`%RE` is relative fluorescence, a screening proxy for the presence of
+fluorescent product. It is not a concentration, and `lifr` never compares it
+to regulatory criteria.
+
+## 3. Edit with an audit trail
+
+Surface smear and known artifacts are masked with the editor family. Every
+call appends a row to the frame's edit history.
+
+```{r edit}
+lif <- lif_zero_shallow(lif, depth = 1)
+lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
+lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)
+lif <- hp_correction(lif, water_table = 6)
+tail(edit_history(lif), 4)
+```
+
+The same edits can live in a CSV and be applied with `lif_apply_edits()`;
+a `boring` of `"*"` applies a row to every boring.
+
+`qc_compare()` shows what changed:
+
+```{r qc, fig.height = 4}
+raw <- lif_import(demo, verbose = FALSE)
+plots <- qc_compare(raw, lif)
+plots[["LIF-02"]]
+```
+
+## 4. Plot
+
+```{r plots}
+lif_plot(lif, "LIF-11")
+lif_plot_all(lif, ncol = 4)
+lif_overview(lif, "LIF-11")
+boring_map(lif, use_instrument_color = TRUE)
+depth_slice_map(lif, depth_range = c(12, 20))
+chart_max_response(lif)
+```
+
+With a projected CRS and network access, `fetch_basemap()` pulls a public
+domain USGS imagery tile to draw under `boring_map()`.
+
+## 5. Report
+
+`process_site()` runs the whole pipeline in one call and writes a
+self-contained HTML report (Summary, Data & QA, Processing history, and
+Boring logs tabs), a Markdown report, and, when pandoc and LaTeX are
+available, a PDF plus a one-page-per-boring logs PDF.
+
+```{r report}
+out <- tempfile("site")
+site <- process_site(demo, output_dir = out, site_name = "Demo Site",
+                     corrections = list(zero_shallow = 1, hp = list(water_table = 6)),
+                     report_formats = c("html", "md"), quiet = TRUE)
+site
+basename(unlist(site$reports))
+```
+
+## 6. Try it on your own data
+
+```{r own, eval = FALSE}
+lif <- lif_import("C:/Projects/MySite/LIF")
+lif <- lif_apply_edits(lif, "C:/Projects/MySite/edits.csv")
+site <- process_site("C:/Projects/MySite/LIF",
+                     edits = "C:/Projects/MySite/edits.csv",
+                     output_dir = "C:/Projects/MySite/out",
+                     crs = 3452)      # your State Plane EPSG code
+```
+
+No field data yet? `lif_simulate()` writes a plausible synthetic site.

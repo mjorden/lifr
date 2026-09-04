@@ -1,0 +1,42 @@
+Package: lifr
+Type: Package
+Title: Import, Plot, and Report Laser-Induced Fluorescence (LIF) Borehole Logs
+Version: 0.1.0
+Authors@R: person("Matthew", "Jorden",
+                  email = "matthew.jorden@gmail.com",
+                  role = c("aut", "cre", "cph"))
+Description: Tools for working with Laser-Induced Fluorescence (LIF) borehole
+    logs from high-resolution site characterization surveys (UVOST, TarGOST,
+    and similar direct-push fluorescence probes). Import raw '.lif.dat' log
+    files into a tidy data frame that keeps every recorded channel, join
+    boring coordinates, mask known-bad depth intervals with a recorded audit
+    trail, summarise and plot depth profiles, plan-view boring maps and site
+    summary charts, and render a self-contained HTML, Markdown, or PDF site
+    report.
+License: MIT + file LICENSE
+URL: https://github.com/mjorden/lifr, https://mjorden.github.io/lifr/
+BugReports: https://github.com/mjorden/lifr/issues
+Encoding: UTF-8
+Depends:
+    R (>= 4.1)
+Imports:
+    base64enc,
+    ggplot2 (>= 3.4.0),
+    grDevices,
+    grid,
+    patchwork,
+    rlang,
+    stats,
+    utils
+Suggests:
+    ggrepel,
+    knitr,
+    png,
+    rmarkdown,
+    sf,
+    testthat (>= 3.0.0),
+    withr
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
