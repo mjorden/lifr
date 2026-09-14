@@ -50,19 +50,31 @@ hp_correction <- function(data, gradient = 0.433, water_table = 0) {
     if (length(miss))
       stop("`water_table` has no entry for boring(s): ",
            paste(miss, collapse = ", "), call. = FALSE)
-    wt_row <- unname(wt[data$boring])
+    # as.character(): a factor `boring` would index the named vector by its
+    # integer codes and hand every boring another boring's water table (#5).
+    wt_row <- unname(wt[as.character(data$boring)])
     wt_note <- paste(sprintf("%s=%g", names(wt), wt), collapse = "|")
   }
-  data$hp <- data$hp - gradient * pmax(0, data$depth - wt_row)
-  .record_edit(data, "hp_correction", NA, NA, NA, NA, sum(!is.na(data$hp)),
+  .check_scalar_number(gradient, "gradient", "hp_correction")
+  term <- gradient * pmax(0, data$depth - wt_row)
+  data$hp <- data$hp - term
+  n_changed <- sum(!is.na(data$hp) & !is.na(term) & term != 0)
+  .record_edit(data, "hp_correction", NA, NA, NA, NA, n_changed,
                notes = sprintf("gradient=%g; water_table=%s", gradient, wt_note))
 }
 
-# Trapezoidal integral of y over x (x need not be sorted).
+# Trapezoidal integral of y over x (x need not be sorted). Readings that
+# share a depth are averaged first, so the result cannot depend on the row
+# order of a tie (#14).
 .trapz <- function(x, y) {
-  o <- order(x); x <- x[o]; y <- y[o]
   ok <- !is.na(x) & !is.na(y)
   x <- x[ok]; y <- y[ok]
+  if (anyDuplicated(x)) {
+    y <- as.numeric(tapply(y, x, mean))
+    x <- sort(unique(x))
+  } else {
+    o <- order(x); x <- x[o]; y <- y[o]
+  }
   if (length(x) < 2L) return(0)
   sum(diff(x) * (utils::head(y, -1) + utils::tail(y, -1)) / 2)
 }
@@ -86,12 +98,15 @@ re_feet <- function(data) {
   .check_data_arg(data, "re_feet")
   .check_required_cols(data, c("boring", "depth", "signal"), source = "data")
   loc_cols <- intersect(c("easting", "northing", "msl"), names(data))
-  rows <- lapply(split(data, data$boring), function(d) {
+  rows <- lapply(split(data, as.character(data$boring)), function(d) {
     n_neg <- sum(d$signal < 0, na.rm = TRUE)
     if (n_neg)
       warning(sprintf("re_feet: boring '%s' has %d negative signal value(s); ",
                       d$boring[1], n_neg),
               "RE-feet may be underestimated.", call. = FALSE)
+    if (anyDuplicated(d$depth[!is.na(d$depth)]))
+      warning(sprintf("re_feet: boring '%s' has repeated depths; readings at the same depth were averaged.",
+                      d$boring[1]), call. = FALSE)
     i <- if (all(is.na(d$signal))) NA_integer_ else which.max(d$signal)
     out <- data.frame(boring = d$boring[1],
                       re_feet = .trapz(d$depth, d$signal),
@@ -130,13 +145,17 @@ lif_downsample <- function(data, target_interval = 1, preserve_above = NULL) {
   if (!is.numeric(target_interval) || length(target_interval) != 1L ||
       !is.finite(target_interval) || target_interval <= 0)
     stop("target_interval must be a single positive number", call. = FALSE)
-  parts <- lapply(unique(data$boring), function(b) {
+  n_na_depth <- sum(is.na(data$depth))
+  parts <- lapply(unique(as.character(data$boring)), function(b) {
     sub <- data[data$boring == b, , drop = FALSE]
     sub <- sub[order(sub$depth), , drop = FALSE]
     n <- nrow(sub)
     if (!n) return(sub)
     keep <- logical(n); last <- -Inf
     for (i in seq_len(n)) {
+      # An NA depth cannot be spaced against its neighbours; keep the row
+      # rather than error (#14) and count it in the audit note.
+      if (is.na(sub$depth[i])) { keep[i] <- TRUE; next }
       pres <- !is.null(preserve_above) && !is.na(sub$signal[i]) &&
               sub$signal[i] > preserve_above
       if (pres || (sub$depth[i] - last) >= target_interval - 1e-9) {
@@ -155,8 +174,9 @@ lif_downsample <- function(data, target_interval = 1, preserve_above = NULL) {
                   n_in, n_out, 100 * n_out / max(n_in, 1), target_interval))
   attr(out, "edits") <- attr(data, "edits")
   .record_edit(out, "lif_downsample", NA, NA, NA, NA, n_in - n_out,
-               notes = sprintf("target_interval=%g; preserve_above=%s; n_in=%d; n_out=%d",
+               notes = sprintf("target_interval=%g; preserve_above=%s; n_in=%d; n_out=%d%s",
                                target_interval,
                                if (is.null(preserve_above)) "none" else format(preserve_above),
-                               n_in, n_out))
+                               n_in, n_out,
+                               if (n_na_depth) sprintf("; na_depth_kept=%d", n_na_depth) else ""))
 }

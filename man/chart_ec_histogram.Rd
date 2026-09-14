@@ -15,9 +15,11 @@ A ggplot, or \code{NULL} with fewer than 10 positive readings.
 \description{
 Pooled \code{ec} across all borings. Exact-zero readings are treated as not
 recorded rather than as 0 mS/m and are excluded with their count in the
-caption; the axis is bounded at a round value at or above the 99th
-percentile so a few conductive spikes cannot bury the bulk of the
-distribution, and readings beyond it are disclosed.
+caption; the axis is bounded at a round value just above the 99th
+percentile (capped at five times the median) so a few conductive spikes
+cannot bury the bulk of the distribution. Readings beyond the bound are
+left out of the histogram and their count and maximum are stated in the
+caption.
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")

@@ -3,10 +3,6 @@
 # NULL-coalescing operator (NULL only, matching base R >= 4.4's %||%).
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-# Session-scoped once-only warning registry: a key present means the
-# warning already fired this session.
-.lifr_warned <- new.env(parent = emptyenv())
-
 # Stop unless every column in `required` is present in `df`. The message
 # names the missing column(s) and lists what was found so a renamed header
 # is distinguishable from a truly absent one.
@@ -46,6 +42,22 @@
   invisible(TRUE)
 }
 
+# Require a single finite (or NA when allowed) numeric scalar.
+.check_scalar_number <- function(x, arg, fn_name, allow_na = FALSE) {
+  ok <- length(x) == 1L && !is.character(x) && !is.list(x) &&
+        ((allow_na && is.na(x)) || (is.numeric(x) && !is.na(x)))
+  if (!ok)
+    stop(sprintf("%s: `%s` must be a single %snumber.", fn_name, arg,
+                 if (allow_na) "number or NA; got a non-" else ""), call. = FALSE)
+  invisible(TRUE)
+}
+
+# TRUE where old and new would be identical after assignment, so an editor
+# can count the readings it actually changed rather than the ones it masked.
+.same_value <- function(old, new) {
+  (is.na(old) & is.na(new)) | (!is.na(old) & !is.na(new) & old == new)
+}
+
 # Auto-scaled axis cap: 5% headroom over the maximum, or `fallback` when
 # there is no positive finite value to scale against.
 .axis_cap <- function(x, fallback) {
@@ -61,19 +73,16 @@
   ifelse(!is.na(x) & grepl("^[0-9A-F]{6}$", x), paste0("#", x), NA_character_)
 }
 
+# Format numbers one at a time so a tiny value cannot pad every label with
+# its decimals (format() on a vector uses a common number of digits).
+.fmt_num <- function(x, digits = 3) {
+  vapply(signif(x, digits), function(v)
+    format(v, big.mark = ",", scientific = FALSE, trim = TRUE), character(1))
+}
+
 # Filename-safe slug of a site name.
 .site_slug <- function(site_name) {
   slug <- gsub("[^A-Za-z0-9]+", "_", tolower(site_name))
   slug <- gsub("^_+|_+$", "", slug)
   if (!nzchar(slug)) "site" else slug
-}
-
-# Snake-case a raw instrument header: "EC.Value" -> "ec_value",
-# "HP PresDown" -> "hp_presdown", "Detector 1 Max (uV)" -> "detector_1_max_uv".
-.snake_name <- function(x) {
-  x <- gsub("[^A-Za-z0-9]+", "_", x)
-  x <- gsub("^_+|_+$", "", x)
-  x <- tolower(x)
-  x[!nzchar(x)] <- "col"
-  make.unique(x, sep = "_")
 }

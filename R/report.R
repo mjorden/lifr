@@ -92,10 +92,13 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
          call. = FALSE)
   if (length(corrections)) {
     known <- c("zero_shallow", "zero_below", "hp")
-    bad <- setdiff(names(corrections) %||% "<unnamed>", known)
-    if (length(bad) || any(!nzchar(names(corrections))))
+    nms <- names(corrections) %||% rep("", length(corrections))
+    bad <- unique(c(setdiff(nms[nzchar(nms)], known), if (any(!nzchar(nms))) "<unnamed>"))
+    if (length(bad))
       stop("process_site: unknown corrections key(s): ", paste(bad, collapse = ", "),
            ". Valid keys: ", paste(known, collapse = ", "), ".", call. = FALSE)
+    # FALSE means "skip", never "run with the first argument set to FALSE" (#8).
+    corrections <- corrections[!vapply(corrections, isFALSE, logical(1))]
   }
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
   say <- function(...) if (!quiet) message(...)
@@ -139,22 +142,32 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
     } else {
       say("[process_site] hydrostatic HP correction")
       p <- if (isTRUE(corrections$hp)) list() else corrections$hp
+      if (!is.list(p))
+        stop("process_site: `corrections$hp` must be TRUE or a named list of ",
+             "hp_correction() arguments.", call. = FALSE)
       data <- hush(do.call(hp_correction, c(list(data), p)))
       add("correct", "hp_correction()",
           paste(names(p), unlist(p), sep = "=", collapse = "; "), data)
     }
   }
 
+  # A failed optional step is a warning (never silenced by `quiet`) and a
+  # "failed" row in the log, so the returned object says what is missing (#11).
+  failed <- function(step, action, e) {
+    warning(sprintf("process_site: %s failed and was skipped: %s", step,
+                    conditionMessage(e)), call. = FALSE)
+    add(step, action, paste("failed:", conditionMessage(e)), data)
+  }
   summ <- tryCatch(summarize_lif(data), error = function(e) {
-    say("[process_site] summary skipped: ", conditionMessage(e)); NULL })
+    failed("summary", "summarize_lif()", e); NULL })
 
   chart_files <- character(0)
   if (isTRUE(charts)) {
     chart_files <- tryCatch(export_site_charts(data, output_dir, prefix,
                                                thresholds = response_thresholds %||% c(1, 5),
                                                quiet = TRUE),
-                            error = function(e) { say("[process_site] charts skipped: ",
-                                                      conditionMessage(e)); character(0) })
+                            error = function(e) { failed("charts", "export_site_charts()", e)
+                                                  character(0) })
     if (length(chart_files))
       add("charts", "export_site_charts()", paste(basename(chart_files), collapse = ", "), data)
   }
@@ -172,8 +185,12 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
     result$reports <- tryCatch(
       site_report(result, formats = report_formats, output_dir = output_dir,
                   file_prefix = prefix, quiet = quiet),
-      error = function(e) { say("[process_site] report skipped: ",
-                                conditionMessage(e)); list() })
+      error = function(e) {
+        failed("report", "site_report()", e)
+        result$log <<- log
+        list()
+      })
+  result$log <- log
   invisible(result)
 }
 
@@ -211,7 +228,8 @@ print.lif_site <- function(x, ...) {
 .df_html_table <- function(df, max_rows = Inf) {
   if (is.null(df) || nrow(df) == 0) return("<p class='muted'>None.</p>")
   n_total <- nrow(df); df <- utils::head(df, max_rows)
-  th <- paste0("<th>", .h_esc(names(df)), "</th>", collapse = "")
+  th <- paste0("<th tabindex='0' aria-sort='none'>", .h_esc(names(df)), "</th>",
+               collapse = "")
   cells <- vapply(df, .fmt_cell, character(nrow(df)))
   if (!is.matrix(cells)) cells <- matrix(cells, nrow = nrow(df))
   rows <- vapply(seq_len(nrow(cells)), function(i)
@@ -225,7 +243,7 @@ print.lif_site <- function(x, ...) {
 .md_table <- function(df, max_rows = Inf) {
   if (is.null(df) || nrow(df) == 0) return("_None._\n")
   n_total <- nrow(df); df <- utils::head(df, max_rows)
-  esc <- function(s) gsub("|", "\\|", gsub("[\r\n]+", " ", s), fixed = TRUE)
+  esc <- .md_esc
   cells <- vapply(df, function(v) esc(.fmt_cell(v, esc = FALSE)), character(nrow(df)))
   if (!is.matrix(cells)) cells <- matrix(cells, nrow = nrow(df))
   # Underscored headers cannot wrap in a pandoc pipe table, so a wide table
@@ -243,7 +261,8 @@ print.lif_site <- function(x, ...) {
   "<div class='tile'><div class='tile-val'>%s</div><div class='tile-lab'>%s</div></div>",
   .h_esc(value), .h_esc(label))
 
-# Render a ggplot to a base64 <img>, or "" on failure.
+# Render a ggplot to a base64 <img>. A figure that fails to render leaves a
+# visible placeholder and a warning rather than vanishing (#18).
 .embed_img <- function(p, alt, width = 7, height = 5, dpi = 110) {
   tryCatch({
     f <- tempfile(fileext = ".png")
@@ -251,7 +270,12 @@ print.lif_site <- function(x, ...) {
     suppressMessages(ggplot2::ggsave(f, p, width = width, height = height, dpi = dpi))
     sprintf("<img class='fig' alt='%s' src='%s' />", .h_esc(alt),
             base64enc::dataURI(file = f, mime = "image/png"))
-  }, error = function(e) "")
+  }, error = function(e) {
+    warning(sprintf("site_report: figure '%s' could not be rendered: %s", alt,
+                    conditionMessage(e)), call. = FALSE)
+    sprintf("<p class='muted'>Figure unavailable (%s): %s</p>", .h_esc(alt),
+            .h_esc(conditionMessage(e)))
+  })
 }
 
 # Write a named list of ggplots as PNG sidecars; returns basenames named by
@@ -270,6 +294,18 @@ print.lif_site <- function(x, ...) {
   files
 }
 
+# Escape Markdown so user-supplied text (paths, boring names, site names)
+# renders literally: a Windows path is otherwise read by pandoc as LaTeX
+# commands and breaks the PDF, and `_` opens emphasis (#10).
+.md_esc <- function(s) {
+  s <- gsub("[\r\n]+", " ", as.character(s))
+  gsub("([\\\\`*_{}\\[\\]()#+!|<>~])", "\\\\\\1", s, perl = TRUE)
+}
+
+# A code span cannot contain a backtick; drop any and let the span carry
+# the rest verbatim.
+.md_code <- function(s) paste0("`", gsub("`", "", as.character(s)), "`")
+
 # Renderer bundles: the same section builders emit HTML or Markdown.
 .html_r <- list(
   table = .df_html_table,
@@ -277,14 +313,16 @@ print.lif_site <- function(x, ...) {
   h3 = function(s) paste0("<h3>", .h_esc(s), "</h3>"),
   note = function(s) paste0("<p class='muted'>", .h_esc(s), "</p>"),
   para = function(s) paste0("<p>", .h_esc(s), "</p>"),
-  none = function(s) paste0("<p class='muted'>", .h_esc(s), "</p>"))
+  none = function(s) paste0("<p class='muted'>", .h_esc(s), "</p>"),
+  path = function(s) paste0("<p class='muted'><code>", .h_esc(s), "</code></p>"))
 .md_r <- list(
   table = .md_table,
-  h2 = function(s) paste0("\n### ", s, "\n"),
-  h3 = function(s) paste0("\n#### ", s, "\n"),
-  note = function(s) paste0("\n_", s, "_\n"),
-  para = function(s) paste0("\n", s, "\n"),
-  none = function(s) paste0("_", s, "_\n"))
+  h2 = function(s) paste0("\n### ", .md_esc(s), "\n"),
+  h3 = function(s) paste0("\n#### ", .md_esc(s), "\n"),
+  note = function(s) paste0("\n_", .md_esc(s), "_\n"),
+  para = function(s) paste0("\n", .md_esc(s), "\n"),
+  none = function(s) paste0("_", .md_esc(s), "_\n"),
+  path = function(s) paste0("\n", .md_code(s), "\n"))
 
 # ---------------------------------------------------------------------------
 # Figures built once and shared by every format
@@ -300,9 +338,14 @@ print.lif_site <- function(x, ...) {
   d <- x$data
   if (!all(c("easting", "northing", "signal") %in% names(d))) return(NULL)
   if (all(is.na(d$easting)) || all(is.na(d$northing))) return(NULL)
-  bm <- NULL; fetch_failed <- FALSE
+  bm <- NULL; fetch_failed <- FALSE; fetch_note <- NULL
   if (!is.null(x$meta$crs)) {
-    bm <- suppressWarnings(fetch_basemap(d, crs = x$meta$crs))
+    # Keep the reason so the report can say why imagery is missing.
+    bm <- withCallingHandlers(fetch_basemap(d, crs = x$meta$crs),
+                              warning = function(w) {
+                                fetch_note <<- conditionMessage(w)
+                                invokeRestart("muffleWarning")
+                              })
     fetch_failed <- is.null(bm)
   }
   plots <- list()
@@ -312,7 +355,7 @@ print.lif_site <- function(x, ...) {
                                 site_name = x$site_name)
   plots$response <- boring_map(d, basemap = bm, use_instrument_color = TRUE,
                                site_name = x$site_name)
-  list(plots = plots, fetch_failed = fetch_failed)
+  list(plots = plots, fetch_failed = fetch_failed, fetch_note = fetch_note)
 }
 
 .report_charts <- function(x) {
@@ -386,13 +429,12 @@ print.lif_site <- function(x, ...) {
     bulk <- x$edits[(is.na(x$edits$boring) | x$edits$boring == b) &
                     is.na(x$edits$top) & is.na(x$edits$bottom), , drop = FALSE]
     if (nrow(bulk)) {
+      # Named without their row counts: the audit count is site-wide and
+      # would read as this boring's (#18).
       lab <- vapply(seq_len(nrow(bulk)), function(j) {
-        n <- bulk$n_rows_changed[j]
-        cnt <- if (is.na(n) || n <= 0) "" else sprintf(" (%d row%s)", as.integer(n),
-                                                       if (n == 1) "" else "s")
         note <- if (identical(bulk$fn[j], "hp_correction"))
           " - does not alter the plotted signal" else ""
-        paste0(bulk$fn[j], cnt, note)
+        paste0(bulk$fn[j], note)
       }, character(1))
       right <- right + ggplot2::labs(caption = paste0(strwrap(
         paste0("Whole-log edit(s), no depth window to shade: ",
@@ -416,8 +458,18 @@ print.lif_site <- function(x, ...) {
     rd <- raw[raw$boring == b, , drop = FALSE]; pd <- proc[proc$boring == b, , drop = FALSE]
     if (nrow(pd) == 0L)
       return(data.frame(boring = b, changed = TRUE, label = "removed", stringsAsFactors = FALSE))
-    changed <- if (nrow(rd) != nrow(pd)) TRUE
-               else any(!same(rd$depth, pd$depth) | !same(rd$signal, pd$signal))
+    # Match readings on depth rather than position, so a reordered frame
+    # re-rendered through site_report() is not reported as changed (#15).
+    changed <- if (nrow(rd) != nrow(pd)) TRUE else {
+      kr <- rd$depth; kp <- pd$depth
+      if (!anyDuplicated(kr) && !anyDuplicated(kp) && setequal(kr, kp)) {
+        m <- match(kr, kp)
+        any(!same(rd$signal, pd$signal[m]))
+      } else {
+        o1 <- order(kr); o2 <- order(kp)
+        any(!same(kr[o1], kp[o2]) | !same(rd$signal[o1], pd$signal[o2]))
+      }
+    }
     xmax <- suppressWarnings(max(c(rd$depth, pd$depth), na.rm = TRUE))
     if (!is.finite(xmax) || xmax <= 0) xmax <- 1
     label <- if (!changed) "" else {
@@ -440,7 +492,7 @@ print.lif_site <- function(x, ...) {
 # ---------------------------------------------------------------------------
 
 .boring_peak_table <- function(data) {
-  pk <- .boring_peaks(data)
+  pk <- .boring_peaks(data, warn = FALSE)
   out <- data.frame(boring = pk$boring,
                     peak_signal = ifelse(pk$sampled, pk$peak_signal, NA_real_),
                     peak_depth = pk$peak_depth, stringsAsFactors = FALSE)
@@ -524,9 +576,10 @@ print.lif_site <- function(x, ...) {
 .history_section <- function(x, r) {
   imp <- x$log[x$log$step == "import", , drop = FALSE]
   parts <- c(r$h2("Import"), r$note(sprintf(
-    "%s rows across %s borings imported from %s.",
+    "%s rows across %s borings imported from:",
     if (nrow(imp)) format(imp$n_rows[1], big.mark = ",") else "?",
-    if (nrow(imp)) imp$n_borings[1] else "?", x$meta$data_dir %||% "the source directory")))
+    if (nrow(imp)) imp$n_borings[1] else "?")),
+    r$path(x$meta$data_dir %||% "the source directory"))
   parts <- c(parts, r$h2("Edit & change log"),
              if (nrow(x$edits) == 0L) r$none("No edits recorded.") else r$table(x$edits))
   corr <- if (nrow(x$edits) && "fn" %in% names(x$edits))
@@ -587,25 +640,46 @@ footer{color:var(--tm);font-size:12px;margin-top:40px;border-top:1px solid var(-
 .report_js <- "
 document.querySelectorAll('table.sortable').forEach(function(t){
  t.querySelectorAll('th').forEach(function(th,i){
-  th.addEventListener('click',function(){
+  function sortBy(){
    var tb=t.tBodies[0],rows=[].slice.call(tb.rows);
    var asc=th.dataset.asc!=='1';th.dataset.asc=asc?'1':'0';
+   t.querySelectorAll('th').forEach(function(h){h.setAttribute('aria-sort','none');});
+   th.setAttribute('aria-sort',asc?'ascending':'descending');
    rows.sort(function(a,b){var x=a.cells[i].innerText,y=b.cells[i].innerText;
     var nx=parseFloat(x),ny=parseFloat(y);
     if(!isNaN(nx)&&!isNaN(ny)){return asc?nx-ny:ny-nx;}
     return asc?x.localeCompare(y):y.localeCompare(x);});
-   rows.forEach(function(r){tb.appendChild(r);});});});});
+   rows.forEach(function(r){tb.appendChild(r);});}
+  th.addEventListener('click',sortBy);
+  th.addEventListener('keydown',function(ev){
+   if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();sortBy();}});});});
+function tabButtons(){return [].slice.call(document.querySelectorAll('.tabbar .tab'));}
 function activateTab(name){
- var btn=document.querySelector(\".tabbar .tab[data-tab='\"+name+\"']\");
+ var btn=null;tabButtons().forEach(function(b){if(b.dataset.tab===name){btn=b;}});
  var pane=document.getElementById('tab-'+name);
- if(!btn||!pane){return;}
- document.querySelectorAll('.tabbar .tab').forEach(function(x){x.classList.remove('active');});
+ if(!btn||!pane){return false;}
+ tabButtons().forEach(function(x){x.classList.remove('active');
+  x.setAttribute('aria-selected','false');x.setAttribute('tabindex','-1');});
  document.querySelectorAll('.tabpane').forEach(function(p){p.classList.remove('active');});
- btn.classList.add('active');pane.classList.add('active');}
-document.querySelectorAll('.tabbar .tab').forEach(function(b){
+ btn.classList.add('active');btn.setAttribute('aria-selected','true');
+ btn.setAttribute('tabindex','0');pane.classList.add('active');
+ return true;}
+tabButtons().forEach(function(b){
  b.addEventListener('click',function(){activateTab(b.dataset.tab);
-  history.replaceState(null,'','#'+b.dataset.tab);});});
-if(location.hash){activateTab(location.hash.slice(1));}
+  try{history.replaceState(null,'','#'+b.dataset.tab);}catch(e){}});
+ b.addEventListener('keydown',function(ev){
+  var tabs=tabButtons(),i=tabs.indexOf(b),n=tabs.length,j=-1;
+  if(ev.key==='ArrowRight'){j=(i+1)%n;} if(ev.key==='ArrowLeft'){j=(i-1+n)%n;}
+  if(j>=0){ev.preventDefault();tabs[j].focus();tabs[j].click();}});});
+(function(){
+ /* The hash is looked up by comparison, never interpolated into a selector,
+    so a quote or bracket in a boring name cannot throw here. */
+ var h='';try{h=decodeURIComponent(location.hash.slice(1));}catch(e){h=location.hash.slice(1);}
+ if(!h){return;}
+ if(activateTab(h)){return;}
+ if(h.indexOf('log-')===0){activateTab('logs');
+  var el=document.getElementById(h);if(el){el.scrollIntoView();}}
+})();
 (function(){
  var secs=[].slice.call(document.querySelectorAll('.boringlog'));
  if(!secs.length){return;}
@@ -663,6 +737,15 @@ if(location.hash){activateTab(location.hash.slice(1));}
   paste0("<h2>Boring logs</h2>", intro, controls, nav, paste(sections, collapse = "\n"))
 }
 
+# Tab markup with the ARIA roles a tablist needs (#19).
+.tab_button <- function(id, label, active = FALSE) sprintf(
+  "<button class='tab%s' role='tab' id='tabbtn-%s' aria-controls='tab-%s' aria-selected='%s' tabindex='%s' data-tab='%s'>%s</button>",
+  if (active) " active" else "", id, id, if (active) "true" else "false",
+  if (active) "0" else "-1", id, label)
+.tab_pane <- function(id, title, active = FALSE) sprintf(
+  "<div id='tab-%s' class='tabpane%s' role='tabpanel' aria-labelledby='tabbtn-%s' data-tab-title='%s'>",
+  id, if (active) " active" else "", id, title)
+
 .report_html <- function(x, mp, lp, cc) {
   d <- x$data; r <- .html_r
   chans <- intersect(c("signal", "ec", "hp", "color"), names(d))
@@ -674,7 +757,10 @@ if(location.hash){activateTab(location.hash.slice(1));}
                   .stat_tile(length(chans), "Channels"),
                   .stat_tile(nrow(x$edits), "Edits"))
   maps_html <- if (is.null(mp)) "<p class='muted'>Boring map: no coordinates joined.</p>" else paste(
-    c(if (mp$fetch_failed) "<p class='muted'>Imagery basemap unavailable (offline, service error, or site outside US coverage); continuing without it.</p>",
+    c(if (mp$fetch_failed) paste0(
+        "<p class='muted'>Imagery basemap unavailable; continuing without it.",
+        if (!is.null(mp$fetch_note)) paste0(" Reason: ", .h_esc(mp$fetch_note)) else "",
+        "</p>"),
       vapply(names(mp$plots), function(nm) .embed_img(mp$plots[[nm]], .REPORT_MAP_ALTS[[nm]]),
              character(1))), collapse = "\n")
   charts_html <- if (!length(cc)) "" else paste0(
@@ -695,19 +781,19 @@ if(location.hash){activateTab(location.hash.slice(1));}
     "<p class='meta'>Generated ", .h_esc(x$meta$started), " &middot; lifr ",
     .h_esc(x$meta$lifr_version), " &middot; source <code>", .h_esc(x$meta$data_dir), "</code></p>",
     "<div class='tiles'>", tiles, "</div>",
-    "<div class='tabbar' role='tablist'>",
-    "<button class='tab active' data-tab='summary'>Summary</button>",
-    "<button class='tab' data-tab='data-qa'>Data &amp; QA</button>",
-    "<button class='tab' data-tab='history'>Processing history</button>",
-    "<button class='tab' data-tab='logs'>Boring logs</button></div>",
-    "<div id='tab-summary' class='tabpane active' data-tab-title='Summary'>",
+    "<div class='tabbar' role='tablist' aria-label='Report sections'>",
+    .tab_button("summary", "Summary", active = TRUE),
+    .tab_button("data-qa", "Data &amp; QA"),
+    .tab_button("history", "Processing history"),
+    .tab_button("logs", "Boring logs"), "</div>",
+    .tab_pane("summary", "Summary", active = TRUE),
     maps_html, edits_pointer, .response_section(x, r), "</div>",
-    "<div id='tab-data-qa' class='tabpane' data-tab-title='Data &amp; QA'>",
+    .tab_pane("data-qa", "Data &amp; QA"),
     .dataqa_section(x, r), charts_html, r$note(.DEFS_NOTE), "</div>",
-    "<div id='tab-history' class='tabpane' data-tab-title='Processing history'>",
+    .tab_pane("history", "Processing history"),
     "<p class='muted'>Chronological record of what was done to this data, in pipeline order.</p>",
     .history_section(x, r), "</div>",
-    "<div id='tab-logs' class='tabpane' data-tab-title='Boring logs'>",
+    .tab_pane("logs", "Boring logs"),
     .embed_boring_logs_html(x, lp), "</div>",
     "<footer>Report generated by lifr::process_site(). The Processing history tab is the ",
     "complete audit trail of edits applied to the data.</footer>",
@@ -732,7 +818,7 @@ if(location.hash){activateTab(location.hash.slice(1));}
     if (!is.null(logs_pdf)) paste0("One page per boring in [`", logs_pdf, "`](", logs_pdf, ").\n")
     else "Rendered in the HTML report's Boring logs tab; request the \"pdf\" format for the standalone one-page-per-boring PDF.\n")
   paste0(
-    "# ", x$site_name, " \u2014 LIF site report\n\n",
+    "# ", .md_esc(x$site_name), " \u2014 LIF site report\n\n",
     "_Generated ", x$meta$started, " \u00b7 lifr ", x$meta$lifr_version, "_\n\n",
     "- Borings: **", length(unique(d$boring)), "**\n",
     "- Samples: **", nrow(d), "**\n",
@@ -807,19 +893,20 @@ site_report <- function(x, formats = c("html", "md"), output_dir = ".",
     chart_files <- .write_pngs(cc, .REPORT_CHART_ALTS, output_dir, slug, "chart",
                                height = 3.6)
     has_logs <- !is.null(lp) && length(lp$plots) > 0L
-    logs_name <- if ("pdf" %in% formats && has_logs) paste0(slug, "_logs.pdf")
+    # The logs PDF is rendered BEFORE the Markdown so the report only links
+    # to a file that exists (#18).
+    logs_pdf <- if ("pdf" %in% formats && has_logs)
+      .render_logs_pdf(lp, output_dir, slug, quiet = quiet) else NULL
     f <- file.path(output_dir, paste0(slug, "_report.md"))
-    writeLines(.report_md(x, map_files, chart_files, logs_pdf = logs_name,
+    writeLines(.report_md(x, map_files, chart_files,
+                          logs_pdf = if (is.null(logs_pdf)) NULL else basename(logs_pdf),
                           has_logs = has_logs), f, useBytes = TRUE)
     if (!quiet) message("Report written: ", f)
     out$md <- f
     if ("pdf" %in% formats) {
       pdf <- .render_report_pdf(f, quiet = quiet)
       if (!is.null(pdf)) out$pdf <- pdf
-      if (has_logs) {
-        lpdf <- .render_logs_pdf(lp, output_dir, slug, quiet = quiet)
-        if (!is.null(lpdf)) out$logs_pdf <- lpdf
-      }
+      if (!is.null(logs_pdf)) out$logs_pdf <- logs_pdf
     }
   }
   invisible(out)
@@ -831,7 +918,11 @@ site_report <- function(x, formats = c("html", "md"), output_dir = ".",
             "skipping the PDF (other formats were written).", call. = FALSE)
     return(NULL)
   }
-  if (!nzchar(Sys.which("xelatex"))) {
+  # rmarkdown finds a TinyTeX install through the tinytex package even when
+  # its bin directory is not on PATH, so check both (#18).
+  has_tex <- nzchar(Sys.which("xelatex")) ||
+    (requireNamespace("tinytex", quietly = TRUE) && nzchar(tinytex::tinytex_root()))
+  if (!has_tex) {
     warning("site_report: PDF output needs a LaTeX distribution with xelatex ",
             "(e.g. tinytex::install_tinytex()); skipping the PDF (other formats ",
             "were written).", call. = FALSE)
@@ -845,8 +936,8 @@ site_report <- function(x, formats = c("html", "md"), output_dir = ".",
     if (!quiet) message("Report written: ", out)
     out
   }, error = function(e) {
-    warning("site_report: PDF conversion failed -- is a LaTeX distribution installed ",
-            "(tinytex::install_tinytex())? ", conditionMessage(e), call. = FALSE)
+    warning("site_report: PDF conversion failed (see the .log file pandoc/LaTeX ",
+            "left beside the report): ", conditionMessage(e), call. = FALSE)
     NULL
   })
 }
@@ -854,18 +945,22 @@ site_report <- function(x, formats = c("html", "md"), output_dir = ".",
 .render_logs_pdf <- function(lp, output_dir, slug, quiet = FALSE) {
   if (is.null(lp) || !length(lp$plots)) return(NULL)
   f <- file.path(output_dir, paste0(slug, "_logs.pdf"))
-  opened <- FALSE
-  ok <- tryCatch({
-    grDevices::pdf(f, width = if (lp$paired) 11 else 8.5, height = 8, onefile = TRUE,
-                   useDingbats = FALSE)
-    opened <- TRUE
+  ok <- FALSE
+  grDevices::pdf(f, width = if (lp$paired) 11 else 8.5, height = 8, onefile = TRUE,
+                 useDingbats = FALSE)
+  # on.exit rather than a tryCatch tail: the device is closed and a partial
+  # file removed even on an interrupt (#18).
+  on.exit({
+    grDevices::dev.off()
+    if (!ok) unlink(f)
+  }, add = TRUE)
+  tryCatch({
     for (b in names(lp$plots)) print(lp$plots[[b]])
-    TRUE
+    ok <- TRUE
   }, error = function(e) {
-    warning("site_report: boring-logs PDF failed (", conditionMessage(e), ").", call. = FALSE)
-    FALSE
+    warning("site_report: boring-logs PDF failed (", conditionMessage(e),
+            "); no logs PDF was written.", call. = FALSE)
   })
-  if (opened) grDevices::dev.off()
   if (!ok) return(NULL)
   if (!quiet) message("Report written: ", f)
   f

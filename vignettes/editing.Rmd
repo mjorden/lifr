@@ -138,20 +138,28 @@ data:
 print(fresh, n = 2)
 ```
 
-### Carrying the history through dplyr
+### What keeps the history
 
-dplyr verbs (`filter()`, `mutate()`, `select()`) rebuild the data frame and
-drop non-standard attributes, so a pipe step silently discards the history.
-Save it before and restore it after:
+The history is an attribute of the data frame. `lifr` carries it through
+the operations you are likely to use: `[` (rows or columns), `rbind()`
+(histories are concatenated, so binding two edited sites keeps both), and
+the dplyr verbs (`filter()`, `mutate()`, `select()`, `arrange()`, joins).
+
+```{r survives}
+sub <- fresh[fresh$boring %in% c("LIF-02", "LIF-03"), c("boring", "depth", "signal")]
+nrow(edit_history(sub))
+```
+
+It is still lost by `merge()`, `tibble::as_tibble()`, and by rebuilding a
+frame from its columns. Around those, save and restore it:
 
 ```{r rescue, eval = FALSE}
 saved <- lif_get_edits(fresh)
-sub   <- dplyr::filter(fresh, boring %in% c("LIF-02", "LIF-03"))
-sub   <- lif_set_edits(sub, saved)
+joined <- merge(fresh, other_table, by = "boring")
+joined <- lif_set_edits(joined, saved)
 ```
 
-Base subsetting with `[` keeps the attribute, so `fresh[fresh$boring ==
-"LIF-02", ]` needs no rescue.
+An edited frame whose history has gone missing prints a banner saying so.
 
 ## Corrections are edits too
 
