@@ -15,6 +15,12 @@ test_that("#1 trailing delimiters on data lines do not shift columns", {
   expect_equal(x$depth, c(1, 2)); expect_equal(x$signal, c(2, 3)); expect_equal(x$ec, c(8, 9))
   write_log(d, "T2", c("Depth\tSignal", "1\t2\t8", "2\t3"))
   expect_error(lif_read(file.path(d, "T2.lif.dat.txt")), "different field counts")
+  # A blank last cell under a full-width header is data (NA), not a surplus.
+  write_log(d, "T3", c("Depth\tSignal\tcolor", "1\t2\t", "2\t3\t112233"))
+  y <- lif_read(file.path(d, "T3.lif.dat.txt"))
+  expect_equal(y$color, c(NA, "#112233"))
+  write_log(d, "T4", c("Depth\tSignal\tcolor", "1\t2\t\t", "2\t3\t112233\t"))
+  expect_equal(lif_read(file.path(d, "T4.lif.dat.txt"))$signal, c(2, 3))
 })
 
 test_that("#2 all-digit colour codes keep their leading zeros", {
@@ -114,6 +120,11 @@ test_that("#10 backslash paths and underscores survive the Markdown report", {
   expect_true(any(grepl("`C:\\\\Users\\\\_arch\\\\demo`", md, fixed = FALSE)))
   expect_true(any(grepl("^# Site\\\\_A \\\\\\*test\\\\\\*", md)))
   expect_equal(lifr:::.md_esc("a_b|c\\d"), "a\\_b\\|c\\\\d")
+  expect_equal(lifr:::.md_esc("Site (A) [b]"), "Site (A) [b]")
+  skip_if_not(nzchar(Sys.which("xelatex")), "no LaTeX")
+  site$site_name <- "Site (A) [b]"
+  r2 <- site_report(site, formats = "pdf", output_dir = out, file_prefix = "parens", quiet = TRUE)
+  expect_true(!is.null(r2$pdf) && file.exists(r2$pdf))
 })
 
 test_that("#11 a failing optional step warns and is logged even when quiet", {

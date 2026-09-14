@@ -299,7 +299,10 @@ print.lif_site <- function(x, ...) {
 # commands and breaks the PDF, and `_` opens emphasis (#10).
 .md_esc <- function(s) {
   s <- gsub("[\r\n]+", " ", as.character(s))
-  gsub("([\\\\`*_{}\\[\\]()#+!|<>~])", "\\\\\\1", s, perl = TRUE)
+  # Brackets and parentheses are deliberately NOT escaped: "\(" and "\[" are
+  # math delimiters under pandoc's tex_math_single_backslash extension, which
+  # rmarkdown enables, and a bare bracket is harmless outside a link.
+  gsub("([\\\\`*_{}#+!|<>~])", "\\\\\\1", s, perl = TRUE)
 }
 
 # A code span cannot contain a backtick; drop any and let the span carry

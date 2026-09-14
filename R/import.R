@@ -76,14 +76,25 @@ lif_read <- function(file, legacy = FALSE) {
   sep <- .sniff_sep(file)
   lines <- readLines(file, warn = FALSE)
   lines <- lines[nzchar(trimws(lines))]
+  if (!length(lines))
+    stop("lif_read: '", basename(file), "' is empty.", call. = FALSE)
+  count <- function(l) utils::count.fields(textConnection(l), sep = sep,
+                                           quote = "\"", comment.char = "")
+  nf <- count(lines)
   # Instrument exports often end every data line with a delimiter. Left in,
   # read.table's "header is one field short" rule would silently use the
   # first column as row names and shift every channel left by one (#1).
-  if (nzchar(sep)) lines <- sub(paste0("(", sep, ")+$"), "", lines)
-  if (!length(lines))
-    stop("lif_read: '", basename(file), "' is empty.", call. = FALSE)
-  nf <- utils::count.fields(textConnection(lines), sep = sep, quote = "\"",
-                            comment.char = "")
+  # Only the SURPLUS trailing empty fields are removed, so a genuinely blank
+  # last cell under a full-width header is kept as NA.
+  if (nzchar(sep) && !isTRUE(legacy)) {
+    h <- nf[1]
+    over <- which(nf > h)
+    for (i in over) {
+      extra <- nf[i] - h
+      lines[i] <- sub(paste0("(", sep, " *){", extra, "}$"), "", lines[i])
+    }
+    if (length(over)) nf <- count(lines)
+  }
   if (length(unique(nf)) > 1L)
     stop(sprintf(paste0(
       "lif_read: '%s' has lines with different field counts (%s); the ",
