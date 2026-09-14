@@ -18,7 +18,7 @@
 #' @export
 chart_max_response <- function(data, thresholds = c(1, 5)) {
   if (!all(c("boring", "signal") %in% names(data))) return(NULL)
-  pk <- .boring_peaks(data)
+  pk <- .boring_peaks(data, warn = FALSE)
   pk <- pk[pk$sampled, , drop = FALSE]
   if (!nrow(pk)) return(NULL)
   floor_re <- if (length(thresholds)) min(thresholds) else 0
@@ -102,9 +102,11 @@ chart_hp_histogram <- function(data) {
 #'
 #' Pooled `ec` across all borings. Exact-zero readings are treated as not
 #' recorded rather than as 0 mS/m and are excluded with their count in the
-#' caption; the axis is bounded at a round value at or above the 99th
-#' percentile so a few conductive spikes cannot bury the bulk of the
-#' distribution, and readings beyond it are disclosed.
+#' caption; the axis is bounded at a round value just above the 99th
+#' percentile (capped at five times the median) so a few conductive spikes
+#' cannot bury the bulk of the distribution. Readings beyond the bound are
+#' left out of the histogram and their count and maximum are stated in the
+#' caption.
 #'
 #' @param data A [lif_data] frame with an `ec` column.
 #' @return A ggplot, or `NULL` with fewer than 10 positive readings.
@@ -120,16 +122,23 @@ chart_ec_histogram <- function(data) {
   n_null <- sum(d$ec == 0)
   d <- d[d$ec > 0, , drop = FALSE]
   if (nrow(d) < 10) return(NULL)
+  # Axis bound: a round value just above the 99th percentile, capped at a
+  # multiple of the median so a site where more than 1 % of readings are
+  # conductive spikes still shows the bulk of the distribution.
   p99 <- stats::quantile(d$ec, 0.99, names = FALSE)
-  step <- if (p99 > 100) 50 else if (p99 > 20) 10 else 5
-  bound <- max(step, ceiling(p99 * 1.1 / step) * step)
+  cap <- min(p99, 5 * stats::median(d$ec)) * 1.1
+  step <- if (cap > 100) 50 else if (cap > 20) 10 else 5
+  bound <- max(step, ceiling(cap / step) * step)
+  ec_max <- max(d$ec)
   n_over <- sum(d$ec > bound)
-  d$ec_shown <- pmin(d$ec, bound)
-  notes <- c(if (n_over) sprintf("%s reading(s) above %g mS/m (to %.0f) beyond the axis",
-                                 format(n_over, big.mark = ","), bound, max(d$ec)),
+  # Readings beyond the bound are disclosed in the caption, not drawn: a
+  # clamped bar at the bound would read as a real spike there (#17).
+  d <- d[d$ec <= bound, , drop = FALSE]
+  notes <- c(if (n_over) sprintf("%s reading(s) above %g mS/m (to %.0f) not drawn",
+                                 format(n_over, big.mark = ","), bound, ec_max),
              if (n_null) sprintf("%s depth(s) with no EC recorded excluded",
                                  format(n_null, big.mark = ",")))
-  ggplot2::ggplot(d, ggplot2::aes(x = .data$ec_shown)) +
+  ggplot2::ggplot(d, ggplot2::aes(x = .data$ec)) +
     ggplot2::geom_histogram(bins = 40, fill = .LIFR_FILL, colour = "white", linewidth = 0.15) +
     ggplot2::coord_cartesian(xlim = c(0, bound)) +
     ggplot2::labs(title = sprintf("Distribution of recorded EC readings (n = %s)",

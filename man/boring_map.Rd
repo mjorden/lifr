@@ -25,6 +25,7 @@ boring_map(
   north_arrow = TRUE,
   scale_bar = TRUE,
   basemap = NULL,
+  min_extent = 100,
   output_file = NULL,
   width = 8,
   height = 7,
@@ -67,6 +68,11 @@ overlaps the fewest borings.}
 
 \item{basemap}{A \code{lifr_basemap} from \code{\link[=fetch_basemap]{fetch_basemap()}} drawn under the
 markers; labels switch to white with a dark halo.}
+
+\item{min_extent}{Minimum width and height of the plan window, in
+coordinate units. A single boring or a collinear transect is padded to
+this extent so the panel, north arrow, and scale bar keep sensible
+proportions. Default 100.}
 
 \item{output_file}{Optional PNG path.}
 

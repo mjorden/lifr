@@ -149,7 +149,7 @@ lif_plot_all <- function(data, xmax = NULL, ymax = NULL,
     ggplot2::coord_flip(xlim = c(0, xmax), ylim = c(0, ymax)) +
     ggplot2::scale_x_reverse(expand = c(0, 0)) +
     ggplot2::scale_y_continuous(expand = c(0, 0)) +
-    ggplot2::facet_wrap(~ boring, ncol = ncol) +
+    ggplot2::facet_wrap(ggplot2::vars(.data$boring), ncol = ncol) +
     ggplot2::labs(x = "Depth (ft)", y = "LIF signal (%RE)",
                   title = "LIF response by boring",
                   caption = .wrap_note(.RE_PROXY_NOTE, 120)) +
@@ -243,8 +243,14 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
   for (b in borings) {
     rb <- raw[raw$boring == b, , drop = FALSE]
     eb <- edited[edited$boring == b, , drop = FALSE]
-    m <- merge(rb[, c("depth", channel)], eb[, c("depth", channel)],
-               by = "depth", suffixes = c("_raw", "_ed"))
+    # Readings that share a depth are paired by their order within that
+    # depth; merging on depth alone made a cartesian product and reported
+    # identical frames as changed (#14).
+    rb <- rb[order(rb$depth), , drop = FALSE]; eb <- eb[order(eb$depth), , drop = FALSE]
+    rb$.k <- stats::ave(seq_len(nrow(rb)), rb$depth, FUN = seq_along)
+    eb$.k <- stats::ave(seq_len(nrow(eb)), eb$depth, FUN = seq_along)
+    m <- merge(rb[, c("depth", ".k", channel)], eb[, c("depth", ".k", channel)],
+               by = c("depth", ".k"), suffixes = c("_raw", "_ed"))
     vr <- m[[paste0(channel, "_raw")]]; ve <- m[[paste0(channel, "_ed")]]
     changed <- m$depth[(is.na(vr) != is.na(ve)) |
                        (!is.na(vr) & !is.na(ve) & vr != ve)]
@@ -284,11 +290,19 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 # Plan-view maps
 # ---------------------------------------------------------------------------
 
+# Plan-view ranges padded to a minimum extent (#16).
+.plan_extent <- function(x, y, min_extent) {
+  xr <- range(x, na.rm = TRUE); yr <- range(y, na.rm = TRUE)
+  if (diff(xr) < min_extent) xr <- mean(xr) + c(-0.5, 0.5) * min_extent
+  if (diff(yr) < min_extent) yr <- mean(yr) + c(-0.5, 0.5) * min_extent
+  list(xr = xr, yr = yr)
+}
+
 # Per-boring peak summary used by boring_map() and the charts.
-.boring_peaks <- function(data, depth_min = NULL, depth_max = NULL) {
+.boring_peaks <- function(data, depth_min = NULL, depth_max = NULL, warn = TRUE) {
   has_color <- "color" %in% names(data) && any(!is.na(data$color))
-  rows <- lapply(split(data, data$boring), function(d) {
-    for (cc in c("easting", "northing"))
+  rows <- lapply(split(data, as.character(data$boring)), function(d) {
+    if (isTRUE(warn)) for (cc in c("easting", "northing"))
       if (cc %in% names(d) && length(unique(stats::na.omit(d[[cc]]))) > 1L)
         warning(sprintf("boring '%s' has inconsistent %s values; using the first.",
                         d$boring[1], cc), call. = FALSE)
@@ -343,6 +357,10 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 #'   overlaps the fewest borings.
 #' @param basemap A `lifr_basemap` from [fetch_basemap()] drawn under the
 #'   markers; labels switch to white with a dark halo.
+#' @param min_extent Minimum width and height of the plan window, in
+#'   coordinate units. A single boring or a collinear transect is padded to
+#'   this extent so the panel, north arrow, and scale bar keep sensible
+#'   proportions. Default 100.
 #' @param output_file Optional PNG path.
 #' @param width,height,dpi Passed to `ggplot2::ggsave()`.
 #' @return A ggplot object.
@@ -383,8 +401,10 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
                        coord_units = "ft", title = NULL, site_name = NULL,
                        figure_date = NULL, preparer = NULL, crs_label = NULL,
                        north_arrow = TRUE, scale_bar = TRUE, basemap = NULL,
-                       output_file = NULL, width = 8, height = 7, dpi = 200) {
+                       min_extent = 100, output_file = NULL, width = 8,
+                       height = 7, dpi = 200) {
   .check_data_arg(data, "boring_map")
+  .check_scalar_number(min_extent, "min_extent", "boring_map")
   .check_required_cols(data, c("boring", "easting", "northing", "depth", "signal"),
                        source = "data")
   if (!is.null(basemap) && !inherits(basemap, "lifr_basemap"))
@@ -399,10 +419,12 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
              else .LIFR_BLUE
   bs$fill[bs$is_nd] <- "#bbbbbb"
   bs$label <- ifelse(bs$is_nd, bs$boring,
-                     paste0(bs$boring, "\n",
-                            format(signif(bs$peak_signal, signal_digits),
-                                   big.mark = ",", scientific = FALSE, trim = TRUE),
+                     paste0(bs$boring, "\n", .fmt_num(bs$peak_signal, signal_digits),
                             " %RE"))
+  # A minimum plan extent keeps one boring or a collinear transect from
+  # collapsing coord_equal() into a hairline panel (#16); the north arrow
+  # and scale bar are sized from the same padded extent.
+  ext <- .plan_extent(bs$easting, bs$northing, min_extent)
   if (isTRUE(size_by_signal)) {
     smax <- if (any(!bs$is_nd)) max(bs$peak_signal[!bs$is_nd]) else 0
     bs$marker_size <- if (smax > 0)
@@ -414,9 +436,8 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
   det <- bs[!bs$is_nd, , drop = FALSE]; nds <- bs[bs$is_nd, , drop = FALSE]
   p <- ggplot2::ggplot(bs, ggplot2::aes(x = .data$easting, y = .data$northing))
   if (!is.null(basemap)) {
-    xr <- range(bs$easting); yr <- range(bs$northing)
-    xlim <- if (diff(xr) > 0) xr + c(-1, 1) * diff(xr) * 0.07 else c(basemap$xmin, basemap$xmax)
-    ylim <- if (diff(yr) > 0) yr + c(-1, 1) * diff(yr) * 0.12 else c(basemap$ymin, basemap$ymax)
+    xlim <- ext$xr + c(-1, 1) * diff(ext$xr) * 0.07
+    ylim <- ext$yr + c(-1, 1) * diff(ext$yr) * 0.12
     bmc <- .crop_basemap(basemap, xlim, ylim)
     p <- p + ggplot2::annotation_raster(bmc$image, xmin = bmc$xmin, xmax = bmc$xmax,
                                         ymin = bmc$ymin, ymax = bmc$ymax)
@@ -460,7 +481,7 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
            .wrap_note(.RE_PROXY_NOTE, 90))
   fmt_coord <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
   p <- p +
-    ggplot2::coord_equal(clip = "off") +
+    ggplot2::coord_equal(xlim = ext$xr, ylim = ext$yr, clip = "off") +
     ggplot2::scale_x_continuous(labels = fmt_coord, expand = ggplot2::expansion(mult = 0.07)) +
     ggplot2::scale_y_continuous(labels = fmt_coord, expand = ggplot2::expansion(mult = 0.12)) +
     ggplot2::labs(x = paste0("Easting (", coord_units, ")"),
@@ -473,8 +494,8 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
                    plot.title = ggplot2::element_text(face = "plain", size = 11))
 
   if (isTRUE(north_arrow) || isTRUE(scale_bar)) {
-    xr <- range(bs$easting); yr <- range(bs$northing)
-    xs <- max(diff(xr), 1); ys <- max(diff(yr), 1)
+    xr <- ext$xr; yr <- ext$yr
+    xs <- diff(xr); ys <- diff(yr)
     buf <- min(xs, ys) * 0.10
     hits <- function(b) sum(bs$easting >= b$xmin - buf & bs$easting <= b$xmax + buf &
                             bs$northing >= b$ymin - buf & bs$northing <= b$ymax + buf)
@@ -530,7 +551,8 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
 #' @inheritParams boring_map
 #' @param depth_range `c(top, bottom)` in ft.
 #' @param channel Column to aggregate. Default `"signal"`.
-#' @param agg_fn Aggregation function applied per boring. Default `max`.
+#' @param agg_fn Aggregation function applied per boring to the non-`NA`
+#'   in-band readings (it receives a plain numeric vector). Default `max`.
 #' @param point_size Marker size. Default 3.
 #' @param label_borings Logical. Label each boring.
 #' @param show_unsampled Logical. Mark borings with no in-band readings.
@@ -560,7 +582,7 @@ depth_slice_map <- function(data, depth_range, channel = "signal", agg_fn = max,
   agg <- if (nrow(slice)) do.call(rbind, lapply(split(slice, slice$boring), function(d)
     data.frame(boring = d$boring[1], easting = mean(d$easting, na.rm = TRUE),
                northing = mean(d$northing, na.rm = TRUE),
-               value = suppressWarnings(agg_fn(d[[channel]], na.rm = TRUE)),
+               value = suppressWarnings(agg_fn(d[[channel]][!is.na(d[[channel]])])),
                stringsAsFactors = FALSE)))
   else data.frame(boring = character(), easting = numeric(), northing = numeric(),
                   value = numeric())

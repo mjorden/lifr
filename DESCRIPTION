@@ -1,7 +1,7 @@
 Package: lifr
 Type: Package
 Title: Import, Plot, and Report Laser-Induced Fluorescence (LIF) Borehole Logs
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: person("Matthew", "Jorden",
                   email = "matthew.jorden@gmail.com",
                   role = c("aut", "cre", "cph"))
@@ -29,12 +29,14 @@ Imports:
     stats,
     utils
 Suggests:
+    dplyr,
     ggrepel,
     knitr,
     png,
     rmarkdown,
     sf,
     testthat (>= 3.0.0),
+    tinytex,
     withr
 VignetteBuilder: knitr
 Config/testthat/edition: 3

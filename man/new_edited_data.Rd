@@ -23,14 +23,23 @@ attribute is present; \code{df} unchanged otherwise.
 \description{
 Prepends the \code{edited_data} class to a frame that has an \code{edits}
 attribute, so printing it shows a provenance banner. Every editor tags its
-output automatically. Like the attribute itself, the class is stripped by
-dplyr verbs and \code{tibble::as_tibble()}; use \code{\link[=lif_get_edits]{lif_get_edits()}} /
-\code{\link[=lif_set_edits]{lif_set_edits()}} to carry the history across such a step.
+output automatically.
 }
+\section{What keeps the history}{
+
+The \code{edits} attribute is carried through \code{[} (row and column subsetting),
+\code{rbind()} (histories are concatenated in argument order), and the dplyr
+verbs (\code{filter()}, \code{mutate()}, \code{select()}, \code{arrange()}, joins) via
+\code{dplyr_reconstruct()}. It is still lost by \code{merge()},
+\code{tibble::as_tibble()}, and by rebuilding the frame from its columns; use
+\code{\link[=lif_get_edits]{lif_get_edits()}} / \code{\link[=lif_set_edits]{lif_set_edits()}} around those.
+}
+
 \examples{
 d  <- data.frame(boring = "B1", depth = 1:3, signal = c(5, 0, 2))
 ed <- lif_zero_shallow(d, depth = 1)
 inherits(ed, "edited_data")
+nrow(edit_history(ed[, c("boring", "depth", "signal")]))
 }
 \seealso{
 \code{\link[=edit_history]{edit_history()}}

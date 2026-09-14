@@ -51,7 +51,14 @@ lif_simulate <- function(n_borings = 12, dir = NULL, seed = 1, extent = 200,
                          origin = c(1000, 2000), interval = 0.25,
                          depth_range = c(22, 40), lobes = NULL, msl = 150,
                          noise = 0.25, verbose = TRUE) {
-  if (!is.numeric(n_borings) || n_borings < 1) stop("n_borings must be >= 1", call. = FALSE)
+  if (!is.numeric(n_borings) || n_borings < 1) stop("lif_simulate: n_borings must be >= 1", call. = FALSE)
+  # Seed locally: the caller's RNG state is restored on exit (#13).
+  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+    old_seed <- get(".Random.seed", envir = globalenv())
+    on.exit(assign(".Random.seed", old_seed, envir = globalenv()), add = TRUE)
+  } else {
+    on.exit(rm(".Random.seed", envir = globalenv()), add = TRUE)
+  }
   set.seed(seed)
   n <- as.integer(n_borings)
   # Jittered grid so borings are irregular but never stacked.
