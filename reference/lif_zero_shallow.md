@@ -41,5 +41,5 @@ The edited frame; one audit row per boring.
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_zero_shallow(lif, depth = 2)
-#> [lif_zero_shallow] zeroed 96 row(s) above 2 ft across 12 boring(s)
+#> [lif_zero_shallow] changed 96 reading(s) at or above 2 ft across 12 boring(s)
 ```

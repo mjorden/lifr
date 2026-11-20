@@ -3,7 +3,7 @@
 Maps `Depth`, `Signal`, `EC`, `HP`, `Color`, `Boring`, `Easting`,
 `Northing`, and `MSL` to their lowercase equivalents. Only exact matches
 are renamed; a rename that would collide with an existing lowercase
-column is skipped with a one-per-session warning.
+column is skipped with a warning.
 
 ## Usage
 

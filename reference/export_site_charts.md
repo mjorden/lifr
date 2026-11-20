@@ -53,7 +53,25 @@ export_site_charts(
 
 ## Value
 
-Character vector of written paths, invisibly.
+Character vector of written paths, invisibly, carrying a `"failed"`
+attribute: a data frame of `chart`, `stage` (`"build"` or `"save"`) and
+`error` for every chart that could not be produced, or `NULL` when all
+of them were.
+[`process_site()`](https://mjorden.github.io/lifr/reference/process_site.md)
+logs it.
+
+## Failures are reported, not skipped
+
+A builder returns `NULL` when the site has no data for that chart (no
+`hp` channel, say), and that is a silent, expected skip. An **error**
+inside a builder, or a `ggsave()` that cannot write the file, is
+different: each raises a warning naming the chart and is recorded in the
+`"failed"` attribute, and the remaining charts still render. Previously
+both paths returned `NULL` and a thrown builder was indistinguishable
+from an absent channel, so the report embedded the previous run's PNG
+and the step log called the survivors the complete set. A stale file
+left at the path of a chart that failed is deleted, so nothing
+downstream reads it as current.
 
 ## Examples
 

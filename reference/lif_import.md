@@ -12,7 +12,7 @@ and ground-surface elevation `msl`. All source columns are preserved.
 lif_import(
   data_dir = ".",
   locations_file = NULL,
-  pattern = .LIF_FILE_PATTERN,
+  pattern = "\\.lif\\.dat\\.(txt|csv)$",
   legacy = FALSE,
   verbose = TRUE
 )

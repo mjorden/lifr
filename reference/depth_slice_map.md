@@ -39,7 +39,8 @@ depth_slice_map(
 
 - agg_fn:
 
-  Aggregation function applied per boring. Default `max`.
+  Aggregation function applied per boring to the non-`NA` in-band
+  readings (it receives a plain numeric vector). Default `max`.
 
 - point_size:
 

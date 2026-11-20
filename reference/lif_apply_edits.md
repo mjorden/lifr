@@ -44,7 +44,8 @@ invisibly).
   `"keep"`.
 
 - `top`, `bottom` (optional): depth bounds. `NA` means the function's
-  own default (whole boring for delete; open-ended for keep).
+  own default (whole boring for delete; open-ended for keep, which needs
+  at least one bound).
 
 ## Examples
 
@@ -64,11 +65,11 @@ lif <- lif_apply_edits(lif, plan)
 #> [lif_apply_edits] Applied 3 edit(s).
 edit_history(lif)
 #>                   timestamp              fn boring top bottom value
-#> 1 2026-09-04 20:42:27 +0000 lif_editor_bulk   <NA>   0    1.5     0
-#> 2 2026-09-04 20:42:27 +0000      lif_editor LIF-02  25 1000.0     0
-#> 3 2026-09-04 20:42:27 +0000        lif_keep LIF-05   8   30.0     0
+#> 1 2026-11-20 22:10:20 +0000 lif_editor_bulk   <NA>   0    1.5     0
+#> 2 2026-11-20 22:10:20 +0000      lif_editor LIF-02  25    Inf     0
+#> 3 2026-11-20 22:10:20 +0000        lif_keep LIF-05   8   30.0     0
 #>   n_rows_changed                                           notes
 #> 1             72                                            <NA>
 #> 2             45                                            <NA>
-#> 3             61 kept 8-30 ft; zeroed rows outside these windows
+#> 3             55 kept 8-30 ft; zeroed rows outside these windows
 ```

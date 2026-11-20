@@ -37,7 +37,7 @@ site report.
 ``` r
 
 lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
-#> [lif_editor] LIF-03: zeroed 9 row(s) (20-22 ft)
+#> [lif_editor] LIF-03: changed 9 reading(s) (20-22 ft)
 ```
 
 Several windows in one call:
@@ -45,7 +45,7 @@ Several windows in one call:
 ``` r
 
 lif <- lif_editor(lif, "LIF-05", delete = list(c(0, 1.5), c(30, Inf)))
-#> [lif_editor] LIF-05: zeroed 37 row(s) (0-1.5 ft, 30-Inf ft)
+#> [lif_editor] LIF-05: changed 37 reading(s) (0-1.5 ft, 30-Inf ft)
 ```
 
 ### Preview first
@@ -56,7 +56,7 @@ data unchanged:
 ``` r
 
 lif_editor(lif, "LIF-07", top = 0, bottom = 3, preview = TRUE)
-#> [lif_editor] PREVIEW LIF-07: zeroed 12 row(s) (0-3 ft)
+#> [lif_editor] PREVIEW LIF-07: would change 12 reading(s) (0-3 ft)
 #> <edited_data> 3 edit(s) recorded -- provenance attached (edit_history() to inspect).
 #> <lif_data> 12 boring(s), 1489 sample(s), depth 0.2-37.5 ft, 3 edit(s)
 #>   channels: signal, ec, hp, color
@@ -82,21 +82,51 @@ that directly rather than as two deletes:
 ``` r
 
 lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)
-#> [lif_keep] LIF-02: zeroed 55 row(s) outside 6-28 ft
+#> [lif_keep] LIF-02: changed 55 reading(s) outside 6-28 ft
 ```
 
 The audit row records the kept span and the zeroed rows are its
 complement. The report’s log plots read that note and shade the zeroed
 depths, not the kept ones.
 
+A keep window that contains none of the boring’s readings would zero the
+whole boring, so it is an error rather than a silent blanking – this is
+the guard against a feet/metres or decimal slip, which is easy to make
+in a plan table:
+
+``` r
+
+# LIF-02 is a ~37 ft boring; 300-350 ft is a metres-for-feet slip
+lif_keep(lif, "LIF-02", top = 300, bottom = 350)
+#> Error:
+#> ! lif_keep: the keep window 300-350 ft contains none of the readings of boring 'LIF-02' (its readings span 0.25-36 ft), so every reading in the boring would be zeroed. Check the window (a feet/metres or decimal slip?); to blank the whole boring on purpose, use lif_editor() with no top/bottom.
+```
+
+A *delete* window that changes nothing is harmless, so it warns rather
+than failing – but it still tells you, naming the boring and its depth
+range, so a wrong plan row does not pass unnoticed:
+
+``` r
+
+invisible(lif_editor(lif, "LIF-02", top = 500, bottom = 600))
+#> Warning: lif_editor: the delete window 500-600 ft on boring 'LIF-02' changed 0
+#> readings -- the window contains none of the boring's readings (its readings
+#> span 0.25-36 ft).
+#> [lif_editor] LIF-02: changed 0 reading(s) (500-600 ft)
+```
+
+To blank a boring on purpose, call
+[`lif_editor()`](https://mjorden.github.io/lifr/reference/lif_editor.md)
+with no `top`/`bottom`.
+
 ### Whole-site helpers
 
 ``` r
 
 lif <- lif_zero_shallow(lif, depth = 1)
-#> [lif_zero_shallow] zeroed 48 row(s) above 1 ft across 12 boring(s)
+#> [lif_zero_shallow] changed 40 reading(s) at or above 1 ft across 12 boring(s)
 lif <- lif_zero_below_threshold(lif, threshold = 0.5, borings = c("LIF-01", "LIF-04"))
-#> [lif_zero_below_threshold] zeroed 246 row(s) below 0.5 across 2 boring(s)
+#> [lif_zero_below_threshold] changed 238 reading(s) below 0.5 across 2 boring(s)
 ```
 
 ## Edit plans in a CSV
@@ -145,14 +175,14 @@ the whole dataset is never a one-liner.
 
 edit_history(fresh)
 #>                   timestamp              fn boring top bottom value
-#> 1 2026-09-04 20:42:47 +0000 lif_editor_bulk   <NA>   0      1     0
-#> 2 2026-09-04 20:42:47 +0000      lif_editor LIF-03  20     22     0
-#> 3 2026-09-04 20:42:47 +0000        lif_keep LIF-02   6     28     0
-#> 4 2026-09-04 20:42:47 +0000      lif_editor LIF-05  30   1000     0
+#> 1 2026-11-20 22:10:38 +0000 lif_editor_bulk   <NA>   0      1     0
+#> 2 2026-11-20 22:10:38 +0000      lif_editor LIF-03  20     22     0
+#> 3 2026-11-20 22:10:38 +0000        lif_keep LIF-02   6     28     0
+#> 4 2026-11-20 22:10:38 +0000      lif_editor LIF-05  30    Inf     0
 #>   n_rows_changed                                           notes
 #> 1             48                                            <NA>
 #> 2              9                                            <NA>
-#> 3             55 kept 6-28 ft; zeroed rows outside these windows
+#> 3             51 kept 6-28 ft; zeroed rows outside these windows
 #> 4             31                                            <NA>
 ```
 
@@ -181,22 +211,63 @@ print(fresh, n = 2)
 #> # ... 1487 more row(s)
 ```
 
-### Carrying the history through dplyr
+### What keeps the history
 
+The history is an attribute of the data frame. `lifr` carries it through
+the operations you are likely to use: `[` (rows or columns) and the
 dplyr verbs ([`filter()`](https://rdrr.io/r/stats/filter.html),
-`mutate()`, `select()`) rebuild the data frame and drop non-standard
-attributes, so a pipe step silently discards the history. Save it before
-and restore it after:
+`mutate()`, `select()`, `arrange()`, joins).
+
+``` r
+
+sub <- fresh[fresh$boring %in% c("LIF-02", "LIF-03"), c("boring", "depth", "signal")]
+nrow(edit_history(sub))
+#> [1] 4
+```
+
+[`rbind()`](https://rdrr.io/r/base/cbind.html) is the one operation that
+*merges* two histories, and it does so only when an edited frame comes
+**first**. R picks the `rbind` method from the first argument that has
+one, and plain data frames have one, so a plain frame in the lead sends
+the whole call to `rbind.data.frame` and the result carries no history
+at all:
+
+``` r
+
+a <- lif_editor(lif_import(demo, verbose = FALSE), "LIF-02", top = 0, bottom = 2)
+b <- lif_editor(lif_import(demo, verbose = FALSE), "LIF-03", top = 0, bottom = 2)
+plain <- as.data.frame(a)
+class(plain) <- "data.frame"
+attr(plain, "edits") <- NULL
+
+nrow(edit_history(rbind(a, b)))          # edited frame first: both histories
+#> [1] 2
+nrow(edit_history(rbind(plain, b)))      # plain frame first: none at all
+#> [1] 0
+```
+
+[`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html)
+is not a substitute: it keeps at most the first argument’s history and
+never concatenates two.
+
+The history is lost outright by
+[`merge()`](https://rdrr.io/r/base/merge.html) and by rebuilding a frame
+from its columns.
+[`tibble::as_tibble()`](https://tibble.tidyverse.org/reference/as_tibble.html)
+and [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) drop
+the *class*, so the provenance banner stops printing; the attribute
+usually survives the call, but nothing maintains it afterwards. Around
+any of these, save and restore it:
 
 ``` r
 
 saved <- lif_get_edits(fresh)
-sub   <- dplyr::filter(fresh, boring %in% c("LIF-02", "LIF-03"))
-sub   <- lif_set_edits(sub, saved)
+joined <- merge(fresh, other_table, by = "boring")
+joined <- lif_set_edits(joined, saved)
 ```
 
-Base subsetting with `[` keeps the attribute, so
-`fresh[fresh$boring == "LIF-02", ]` needs no rescue.
+An edited frame whose history has gone missing prints a banner saying
+so.
 
 ## Corrections are edits too
 
@@ -213,10 +284,10 @@ thin  <- lif_downsample(fresh, target_interval = 1, preserve_above = 5)
 #> lif_downsample: 1489 -> 596 rows (40% retained, target_interval=1 ft)
 tail(edit_history(thin), 2)
 #>                   timestamp             fn boring top bottom value
-#> 5 2026-09-04 20:42:47 +0000  hp_correction   <NA>  NA     NA    NA
-#> 6 2026-09-04 20:42:47 +0000 lif_downsample   <NA>  NA     NA    NA
+#> 5 2026-11-20 22:10:38 +0000  hp_correction   <NA>  NA     NA    NA
+#> 6 2026-11-20 22:10:38 +0000 lif_downsample   <NA>  NA     NA    NA
 #>   n_rows_changed                                                     notes
-#> 5           1489                             gradient=0.433; water_table=6
+#> 5           1201                             gradient=0.433; water_table=6
 #> 6            893 target_interval=1; preserve_above=5; n_in=1489; n_out=596
 ```
 

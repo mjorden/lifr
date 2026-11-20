@@ -66,6 +66,31 @@ lif_overview(lif, "LIF-06")
 
 ![](plotting_files/figure-html/overview-1.png)
 
+The `ec` and `hp` panels floor their value axis at 0 by default. That
+floor zooms rather than drops, so a negative reading would sit on the
+panel edge and read as zero – which is exactly what
+[`hp_correction()`](https://mjorden.github.io/lifr/reference/hp_correction.md)
+produces through the unsaturated zone. Readings below the floor are
+reported, in a message and a panel caption, and `ymin = NULL` opens the
+axis to show them with a thin line marking 0:
+
+``` r
+
+corrected <- hp_correction(lif, water_table = 6)
+lif_overview(corrected, "LIF-06")                # discloses, floor at 0
+#> lif_overview('LIF-06', hp): 1 reading below the axis floor (0); pass ymin =
+#> NULL to show them
+```
+
+![](plotting_files/figure-html/overview-ymin-1.png)
+
+``` r
+
+lif_overview(corrected, "LIF-06", ymin = NULL)   # shows them
+```
+
+![](plotting_files/figure-html/overview-ymin-open-1.png)
+
 ### Input versus edited: `qc_compare()`
 
 ``` r
@@ -80,10 +105,14 @@ qc_compare(lif, edited)[["LIF-10"]]
 
 ### `boring_map()`
 
-Each boring is a marker sized by the square root of its peak signal, so
-the site’s pattern reads even in greyscale, and labelled with its name
-and peak. Non-detects are hollow circles. A north arrow and scale bar
-sit in whichever corners overlap the fewest borings.
+Each boring is a marker whose **area** is proportional to its peak
+signal, so the site’s pattern reads even in greyscale, labelled with its
+name and peak. A size key gives the site maximum and a quarter and a
+sixteenth of it, so the small markers can be read too: a marker at 1 %
+of the peak really is 1 % of the peak’s area, and a ring of weak detects
+around a hot spot cannot read as a broad plume. Non-detects are hollow
+circles, never larger than the smallest real detect. A north arrow and
+scale bar sit in whichever corners overlap the fewest borings.
 
 ``` r
 
@@ -112,6 +141,20 @@ boring_map(lif, depth_min = 12, depth_max = 20, use_instrument_color = TRUE)
 ```
 
 ![](plotting_files/figure-html/map-window-1.png)
+
+`fill_floor` greys a detect whose peak falls below a screening floor.
+The marker keeps its size and its detect status – the reading is real –
+but carries no colour claim, which is what
+[`chart_max_response()`](https://mjorden.github.io/lifr/reference/chart_max_response.md)
+does with the same boring’s bar. The site report passes its own
+screening floor, so the two figures agree:
+
+``` r
+
+boring_map(lif, use_instrument_color = TRUE, fill_floor = 5)
+```
+
+![](plotting_files/figure-html/map-floor-1.png)
 
 Other useful arguments: `nd_threshold` (peaks at or below it are
 non-detects), `size_by_signal = FALSE` for uniform markers,

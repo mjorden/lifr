@@ -68,6 +68,13 @@ A list: `overview` (one row: `n_borings`, `n_samples`, `min`, `mean`,
 `p50`, `p95`), and `quantiles` (one row, `channel` plus one column per
 probability).
 
+## Depths outside the bins
+
+Readings whose depth falls below the first break (negative depths, when
+`depth_bins` starts at 0) or is `NA` are not in any zone;
+`$by_depth_zone` carries an `unbinned` count in its attribute of the
+same name so the zone rows can be reconciled with `n_samples`.
+
 ## Geometric mean
 
 LIF response is right-skewed, so the geometric mean is reported beside

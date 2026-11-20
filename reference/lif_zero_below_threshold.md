@@ -30,7 +30,19 @@ lif_zero_below_threshold(data, threshold, borings = NULL, value = 0)
 
 ## Value
 
-The edited frame with one audit row recording the threshold.
+The edited frame: one audit row with `boring = NA` when `borings` is
+`NULL`, otherwise one row per named boring.
+
+## Details
+
+Called without `borings`, the edit is recorded as a single audit row
+with `boring = NA`, which the report reads as "every boring at the
+site". Called with `borings`, it writes one row per named boring, each
+with its own `n_rows_changed`, as
+[`lif_zero_shallow()`](https://mjorden.github.io/lifr/reference/lif_zero_shallow.md)
+does: a single `boring = NA` row claimed the edit had reached borings it
+never touched, and put the report's whole-log caption under every log
+(daktools \#791). A name repeated in `borings` is one target, not two.
 
 ## Examples
 
@@ -38,5 +50,5 @@ The edited frame with one audit row recording the threshold.
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_zero_below_threshold(lif, threshold = 1)
-#> [lif_zero_below_threshold] zeroed 1014 row(s) below 1 across 12 boring(s)
+#> [lif_zero_below_threshold] changed 1014 reading(s) below 1 across 12 boring(s)
 ```

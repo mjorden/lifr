@@ -1,9 +1,11 @@
 # Construct a validated LIF data frame
 
 Tags a data frame with the `lif_data` class after checking that it
-carries `boring`, `depth`, and `signal`. The object still inherits from
-`data.frame`, so every base-R and tidyverse operation keeps working; the
-class only adds [`print()`](https://rdrr.io/r/base/print.html) and
+carries `boring`, `depth`, and `signal`. A factor `boring` is converted
+to character, so boring names never reach an indexing path as integer
+codes. The object still inherits from `data.frame`, so every base-R and
+tidyverse operation keeps working; the class only adds
+[`print()`](https://rdrr.io/r/base/print.html) and
 [`summary()`](https://rdrr.io/r/base/summary.html) methods. Importers
 return classed objects automatically.
 

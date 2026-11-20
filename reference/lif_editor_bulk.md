@@ -8,7 +8,7 @@ Zero LIF signal inside a depth window across all borings
 lif_editor_bulk(
   data,
   top = 0,
-  bottom = 1000,
+  bottom = Inf,
   value = 0,
   preview = FALSE,
   verbose = TRUE
@@ -24,8 +24,9 @@ lif_editor_bulk(
 
 - top, bottom:
 
-  Depth interval (ft) to zero. Defaults `0` and `1000` cover the whole
-  boring, which triggers a warning.
+  Depth interval (ft) to zero. Defaults `0` and `Inf` cover the whole
+  boring, which triggers a warning. Readings with an `NA` depth are
+  never inside a window and are left unchanged.
 
 - value:
 
@@ -51,7 +52,7 @@ appended.
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_editor_bulk(lif, top = 0, bottom = 2)
-#> [lif_editor_bulk] zeroed 96 row(s) (0-2 ft) across 12 boring(s)
+#> [lif_editor_bulk] changed 96 reading(s) (0-2 ft) across 12 boring(s)
 #>   LIF-01               8 rows
 #>   LIF-02               8 rows
 #>   LIF-03               8 rows
@@ -65,19 +66,7 @@ lif <- lif_editor_bulk(lif, top = 0, bottom = 2)
 #>   LIF-11               8 rows
 #>   LIF-12               8 rows
 lif_editor_bulk(lif, top = 0, bottom = 1, preview = TRUE)
-#> [lif_editor_bulk] PREVIEW: would have zeroed 48 row(s) (0-1 ft) across 12 boring(s)
-#>   LIF-01               4 rows
-#>   LIF-02               4 rows
-#>   LIF-03               4 rows
-#>   LIF-04               4 rows
-#>   LIF-05               4 rows
-#>   LIF-06               4 rows
-#>   LIF-07               4 rows
-#>   LIF-08               4 rows
-#>   LIF-09               4 rows
-#>   LIF-10               4 rows
-#>   LIF-11               4 rows
-#>   LIF-12               4 rows
+#> [lif_editor_bulk] PREVIEW: would change 0 reading(s) (0-1 ft) across 12 boring(s)
 #> <edited_data> 1 edit(s) recorded -- provenance attached (edit_history() to inspect).
 #> <lif_data> 12 boring(s), 1489 sample(s), depth 0.2-37.5 ft, 1 edit(s)
 #>   channels: signal, ec, hp, color

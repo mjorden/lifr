@@ -55,13 +55,25 @@ lif_keep(
 
 The edited frame with one audit row appended.
 
+## Details
+
+A keep window (or set of `keep` windows) that contains none of
+`borename`'s readings would zero the whole boring, so it is an error of
+class `"lifr_keep_window_miss"` naming the boring, the window, and the
+boring's depth range, under `preview = TRUE` too. This is the ft/metres
+and decimal-slip guard: `lif_keep(lif, "B2", top = 300, bottom = 350)`
+on a 20 ft boring used to blank it silently. To blank a boring on
+purpose, call
+[`lif_editor()`](https://mjorden.github.io/lifr/reference/lif_editor.md)
+with no `top`/`bottom`.
+
 ## Examples
 
 ``` r
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_keep(lif, "LIF-04", top = 10, bottom = 25)
-#> [lif_keep] LIF-04: zeroed 42 row(s) outside 10-25 ft
+#> [lif_keep] LIF-04: changed 42 reading(s) outside 10-25 ft
 lif <- lif_keep(lif, "LIF-06", keep = list(c(8, 12), c(20, 28)))
-#> [lif_keep] LIF-06: zeroed 100 row(s) outside 8-12 ft, 20-28 ft
+#> [lif_keep] LIF-06: changed 100 reading(s) outside 8-12 ft, 20-28 ft
 ```

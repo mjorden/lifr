@@ -133,10 +133,10 @@ lif <- lif_zero_shallow(lif, depth = 1)                   # all borings
 lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)   # one interval
 lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)      # keep one clean window
 tail(edit_history(lif), 3)
-#>                    timestamp         fn boring top bottom value n_rows_changed
-#> 12 2026-09-04 20:42:51 +0000 lif_editor LIF-12   0      1     0              4
-#> 13 2026-09-04 20:42:51 +0000 lif_editor LIF-03  20     22     0              9
-#> 14 2026-09-04 20:42:51 +0000   lif_keep LIF-02   6     28     0             55
+#>                    timestamp         fn boring  top bottom value n_rows_changed
+#> 12 2026-11-20 22:10:42 +0000 lif_editor LIF-12 -Inf      1     0              4
+#> 13 2026-11-20 22:10:42 +0000 lif_editor LIF-03   20     22     0              9
+#> 14 2026-11-20 22:10:42 +0000   lif_keep LIF-02    6     28     0             51
 #>                                              notes
 #> 12                                            <NA>
 #> 13                                            <NA>
@@ -209,7 +209,7 @@ site <- process_site(demo, output_dir = out, site_name = "Demo site",
 site
 #> <lif_site> Demo site
 #>   12 boring(s), 1489 sample(s), 12 edit(s), 4 chart(s)
-#>   report(s): /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.html, /tmp/RtmpPOBKQA/site1ff417418362/demo_site_report.md
+#>   report(s): /tmp/RtmpX1gHoT/site236566972c50/demo_site_report.html, /tmp/RtmpX1gHoT/site236566972c50/demo_site_report.md
 basename(unlist(site$reports))
 #> [1] "demo_site_report.html" "demo_site_report.md"
 ```

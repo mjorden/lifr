@@ -11,7 +11,8 @@ lif_overview(
   borename,
   channels = c("ec", "hp"),
   depth_max = NULL,
-  ymax = NULL
+  ymax = NULL,
+  ymin = 0
 )
 ```
 
@@ -40,6 +41,18 @@ lif_overview(
 
   Signal axis cap. `NULL` (default) auto-scales to 5% above the boring's
   maximum.
+
+- ymin:
+
+  Value-axis floor for the `channels` panels (the LIF panel keeps its
+  own 0 floor: negative %RE is not a quantity). Default `0`, so no
+  existing figure changes shape. Readings below the floor are left out
+  of view by the coordinate limits, not dropped, so nothing warns on its
+  own; when any are, a message of class `"lifr_below_floor"` and a panel
+  caption say how many. `NULL` floors at `min(0, 1.05 * min(value))` and
+  marks 0 with a thin line, which is how to see the negative `hp` that
+  [`hp_correction()`](https://mjorden.github.io/lifr/reference/hp_correction.md)
+  produces by default through the unsaturated zone.
 
 ## Value
 

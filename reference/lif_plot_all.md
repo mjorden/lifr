@@ -1,6 +1,12 @@
 # Plot LIF depth profiles for every boring
 
-Plot LIF depth profiles for every boring
+Both layouts draw the per-reading emission-colour fill and the colour
+strip left of zero when the frame carries a `color` channel, so a
+small-multiples sheet shows which borings share a fluorescence
+signature. Colour is decided per boring: a boring with a colour at any
+depth gets the colour layers, the rest get the flat fill. All panels
+share one signal axis, so a colour-less panel on a mixed sheet shows an
+empty strip band.
 
 ## Usage
 
