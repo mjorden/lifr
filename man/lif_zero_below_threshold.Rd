@@ -17,11 +17,21 @@ lif_zero_below_threshold(data, threshold, borings = NULL, value = 0)
 \item{value}{Replacement value. Default 0; \code{NA} is allowed.}
 }
 \value{
-The edited frame with one audit row recording the threshold.
+The edited frame: one audit row with \code{boring = NA} when \code{borings}
+is \code{NULL}, otherwise one row per named boring.
 }
 \description{
 Sets \code{signal} to \code{value} wherever it is strictly less than \code{threshold},
 across all borings or the named subset. \code{NA} readings are left alone.
+}
+\details{
+Called without \code{borings}, the edit is recorded as a single audit row with
+\code{boring = NA}, which the report reads as "every boring at the site".
+Called with \code{borings}, it writes one row per named boring, each with its
+own \code{n_rows_changed}, as \code{\link[=lif_zero_shallow]{lif_zero_shallow()}} does: a single \code{boring = NA}
+row claimed the edit had reached borings it never touched, and put the
+report's whole-log caption under every log (daktools #791). A name repeated in
+\code{borings} is one target, not two.
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")

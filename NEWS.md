@@ -1,5 +1,81 @@
 # lifr (development version)
 
+## Second round of daktools ports
+
+Six more defects carried over from the daktools October/November 2026 fixes
+(daktools issues #791, #792, #801, #795, #661, #647). Two changed what a
+figure claimed about the data:
+
+- `lif_overview()` and `qc_compare()` gain `ymin`, and say what falls below
+  the value-axis floor (daktools #661). `coord_flip(ylim = )` zooms rather
+  than drops, so every row stayed in the layer data, ggplot emitted no
+  "Removed n rows" warning, and a reading below the floor was drawn on the
+  panel edge, reading as zero. That mattered most for `hp`: with the
+  default `water_table = 0`, `hp_correction()` subtracts the full
+  hydrostatic column from the ground surface, which the function itself
+  warns over-corrects the unsaturated zone -- on the bundled demo site that
+  puts 101 of LIF-06's 150 readings as low as -2.64 psi, and the 0 floor
+  turned them into a flat trace against the axis that reads as "very
+  permeable"
+  rather than "correction artifact". `ymin` defaults to `0`, so no existing
+  figure changes shape; what is new under the defaults is the disclosure, a
+  message of class `"lifr_below_floor"` and a one-line panel caption
+  ("101 readings below 0"). `ymin = NULL` floors at `min(0, 1.05 * min(value))`
+  and marks 0 with a thin line. The LIF panels keep their 0 floor: negative
+  %RE is not a quantity. `qc_compare()` discloses on every channel,
+  `signal` included -- it is a QC view of what an edit changed, not a log
+  display.
+- `boring_map(fill_floor =)` greys a detect below the screening floor, and
+  `process_site()` passes the report's floor (daktools #801). The response
+  map gave a boring at 0.3 %RE a full-strength emission colour while
+  `chart_max_response()`, a page away in the same report, greyed that same
+  boring's bar -- so two figures in one deliverable disagreed about whether
+  a boring carried a product signature. A grey marker keeps its size and
+  its detect status: the reading is real, it just carries no colour claim.
+  Default `NULL` is the old look.
+- **`lif_zero_below_threshold(borings =)` records which borings it edited**
+  (daktools #791). Scoped to a subset, it wrote a single audit row with
+  `boring = NA`, which the report reads as "every boring at the site" --
+  putting the whole-log caption under logs the edit never touched. It now
+  writes one row per named boring, each with its own `n_rows_changed`, as
+  `lif_zero_shallow()` already did. Called without `borings` it still writes
+  the one `boring = NA` row, because there that is true. A name repeated in
+  `borings` is one target, not two.
+- `qc_compare()` marks a reading it can no longer plot, and no longer drops
+  a one-sided depth (daktools #795). A depth whose value is `NA` in
+  `edited` -- what `lif_editor(value = NA)` writes -- was detected as a
+  change, but `geom_point()` had no `y` to draw and silently dropped the
+  mark, so the panel pair looked identical. Those depths now get a red
+  cross just above the panel floor and a subtitle saying so. The depth
+  match is also an outer join now: a depth present in only one frame, which
+  is what `lif_downsample()` leaves behind, was excluded from the
+  comparison entirely and could report a changed boring as unchanged.
+- `process_site()`'s step log formats each correction argument on its own
+  (daktools #792). The detail string was built with
+  `paste(names(p), unlist(p), sep = "=")`, which recycled the argument names
+  over the flattened values, so any argument longer than one value shifted
+  every later one: `hp = list(water_table = c("LIF-01" = 12, "LIF-02" =
+  14.5), gradient = 0.433)` was logged as `water_table=12; gradient=14.5;
+  water_table=0.433`, putting a 14.5 ft/ft gradient on the record and
+  contradicting the edit history in the same report. Vectors now render as
+  `c(LIF-01=12|LIF-02=14.5)` and lists as `list(a=1|b=c(2|3))`.
+  Scalar-only details are unchanged.
+- `?new_edited_data` now states the real edit-history survival rules
+  (daktools #647). Three places claimed `rbind()` concatenates histories
+  unconditionally. It does so only when its **first** argument carries a
+  `lifr` class: `rbind()`'s dispatch takes the first argument whose class
+  has a method and `data.frame` has one, so `rbind(plain_df, edited)` falls
+  to `rbind.data.frame` and returns an unclassed frame with no history at
+  all -- not even the edited argument's -- and nothing warns. Also newly
+  stated: `dplyr::bind_rows()` keeps at most the first argument's history
+  and never merges two, and `as_tibble()`/`as.data.frame()` drop the
+  *class* rather than the attribute, so the banner stops printing while
+  `edit_history()` still reads it. Verified by execution and pinned by test,
+  so an upstream change reads as "re-verify the docs" rather than as a
+  `lifr` regression. No behaviour changes.
+
+## First round of daktools ports
+
 Defects ported from the daktools October/November 2026 fixes (daktools
 issues #662, #666, #667, #649, #789, #796). Three of them changed what a
 figure claimed about the data, so figures regenerate:

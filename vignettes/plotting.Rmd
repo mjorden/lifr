@@ -60,6 +60,22 @@ boring did not record are skipped.
 lif_overview(lif, "LIF-06")
 ```
 
+The `ec` and `hp` panels floor their value axis at 0 by default. That floor
+zooms rather than drops, so a negative reading would sit on the panel edge
+and read as zero -- which is exactly what `hp_correction()` produces
+through the unsaturated zone. Readings below the floor are reported, in a
+message and a panel caption, and `ymin = NULL` opens the axis to show them
+with a thin line marking 0:
+
+```{r overview-ymin, fig.height = 4.5, message = TRUE}
+corrected <- hp_correction(lif, water_table = 6)
+lif_overview(corrected, "LIF-06")                # discloses, floor at 0
+```
+
+```{r overview-ymin-open, fig.height = 4.5}
+lif_overview(corrected, "LIF-06", ymin = NULL)   # shows them
+```
+
 ### Input versus edited: `qc_compare()`
 
 ```{r qc, fig.height = 4.5}
@@ -96,6 +112,16 @@ Restrict the peak to a depth window:
 
 ```{r map-window, fig.height = 6.5}
 boring_map(lif, depth_min = 12, depth_max = 20, use_instrument_color = TRUE)
+```
+
+`fill_floor` greys a detect whose peak falls below a screening floor. The
+marker keeps its size and its detect status -- the reading is real -- but
+carries no colour claim, which is what `chart_max_response()` does with the
+same boring's bar. The site report passes its own screening floor, so the
+two figures agree:
+
+```{r map-floor, fig.height = 6.5}
+boring_map(lif, use_instrument_color = TRUE, fill_floor = 5)
 ```
 
 Other useful arguments: `nd_threshold` (peaks at or below it are
