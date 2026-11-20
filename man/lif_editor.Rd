@@ -44,6 +44,19 @@ artifacts: surface smear, a rod change, a fluorescent mineral seam. The
 inverse, keeping one clean window and zeroing everything else, is
 \code{\link[=lif_keep]{lif_keep()}}.
 }
+\section{No-op edits}{
+
+A window that changes 0 readings -- one that misses the boring's depth
+range, or that covers only readings already holding \code{value} -- raises a
+warning of class \code{"lifr_edit_noop"} naming the boring, the window, and
+the boring's depth range, under \code{preview = TRUE} too. It is a warning and
+not an error because a 0-row delete changes nothing; it is there to catch
+the plan row whose depths are wrong. Warnings are not messages, so
+\code{process_site(quiet = TRUE)} leaves it visible.
+\code{\link[=lif_zero_shallow]{lif_zero_shallow()}} muffles it, since a boring with nothing left to zero
+is expected there.
+}
+
 \section{The audit trail}{
 
 Every editor appends a row to \code{attr(data, "edits")} recording the

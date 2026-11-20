@@ -1,3 +1,54 @@
+# lifr (development version)
+
+Defects ported from the daktools October/November 2026 fixes (issues
+#30-#35). Three of them changed what a figure claimed about the data, so
+figures regenerate:
+
+- `boring_map()`: marker **area** is now proportional to peak signal, and
+  the map carries a size key (#31). The old law kept a 40 % diameter floor,
+  which drew a boring at 1 % of the site peak at 7.8 % of the peak's area
+  (10 % at 20 %, 25 % at 36 %), with no key to read sizes against -- a ring
+  of weak detects around a hot spot read as a broad moderate plume. The
+  maximum-signal marker keeps the diameter it had (`2 * point_size`); every
+  other marker shrinks to its honest area. The hollow non-detect ring is off
+  the size scale and is never larger than the smallest detect.
+  `nd_threshold` must be `>= 0` when `size_by_signal = TRUE`;
+  `size_by_signal = FALSE` is unchanged. Suppress the key with
+  `ggplot2::guides(size = "none")`.
+- `chart_max_response()`: the caption now names only the encodings the bars
+  carry (#33). It used to claim "bar colour = emission colour at
+  peak-signal depth" over every chart and fill the colour-less bars a muted
+  olive -- a plausible fluorescence hue -- so a delivery with no colour
+  channel shipped a false caption over bars that read as real signatures.
+  A bar above the screening floor with no usable colour is now hollow.
+- Area fills break at `NA` instead of running straight across the gap
+  (#30). Since ggplot2 3.4 `geom_area()` defaults to `stat_align`, which
+  drops `NA` rows and interpolates, so an interval deleted with
+  `value = NA` was painted as signal while the line over it broke
+  correctly. Affects `lif_plot()`, `lif_plot_all()`, `qc_compare()` and the
+  report's channel panels.
+- `lif_plot_all(layout = "facet")` draws the per-reading emission colour
+  and the colour strip, as `layout = "list"` already did (#35). The sheet
+  ignored `color` entirely, so the comparison a small-multiples sheet
+  exists for -- which borings share a fluorescence signature -- was the one
+  thing it could not show. Colour is decided per boring; a frame with no
+  colour renders exactly as before.
+- **`lif_keep()` now errors** when the keep window contains none of the
+  boring's readings (#32), instead of silently zeroing the whole boring --
+  the feet/metres and decimal-slip guard. `lif_apply_edits()` checks every
+  `keep` row before applying any of them. A delete window that changes 0
+  readings raises a classed warning (`"lifr_edit_noop"`) naming the boring,
+  the window and the boring's depth range; `lif_zero_shallow()` muffles it,
+  since a boring with nothing left to zero is expected there.
+- `export_site_charts()` reports a chart it could not build or save instead
+  of skipping it like an absent channel (#34). Both used to return `NULL`,
+  so the report embedded the previous run's PNG and `process_site()` logged
+  the survivors as the complete set. Each failure now warns, lands in the
+  returned value's `"failed"` attribute and gets its own `process_site()`
+  log row, the other charts still render, and a stale PNG at a failed
+  chart's path is deleted. A builder returning `NULL` because the site has
+  no data for that chart is still a silent skip.
+
 # lifr 0.1.1
 
 Fixes from the September 2026 code review (issues #1-#20). Behaviour changes

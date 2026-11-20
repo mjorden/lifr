@@ -168,6 +168,14 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
                                                quiet = TRUE),
                             error = function(e) { failed("charts", "export_site_charts()", e)
                                                   character(0) })
+    # export_site_charts() warns on each chart it could not build or save and
+    # records them; give every one its own "failed" log row, so the log never
+    # presents the survivors as the complete set (#34).
+    cf <- attr(chart_files, "failed")
+    if (is.data.frame(cf))
+      for (j in seq_len(nrow(cf)))
+        add("charts", sprintf("chart_%s", cf$chart[j]),
+            sprintf("failed to %s: %s", cf$stage[j], cf$error[j]), data)
     if (length(chart_files))
       add("charts", "export_site_charts()", paste(basename(chart_files), collapse = ", "), data)
   }
@@ -365,11 +373,22 @@ print.lif_site <- function(x, ...) {
   d <- x$data
   thr <- x$meta$response_thresholds %||% c(1, 5)
   out <- list()
-  p <- tryCatch(chart_max_response(d, thresholds = thr), error = function(e) NULL)
+  # A builder returning NULL means the site has no data for that chart and is
+  # a silent skip; a builder that THROWS is a failure, and a client-facing
+  # report must not turn it into a silent absence. Warn, naming the chart,
+  # and write the report without that figure (#34).
+  build <- function(nm, expr) {
+    tryCatch(expr, error = function(e) {
+      warning(sprintf("site_report: chart '%s' failed and is omitted: %s", nm,
+                      gsub("\\s+", " ", paste(conditionMessage(e), collapse = " "))),
+              call. = FALSE)
+      NULL
+    })
+  }
+  p <- build("max_response", chart_max_response(d, thresholds = thr))
   if (!is.null(p)) out$max_response <- p
   for (nm in c("ec", "hp")) {
-    p <- tryCatch(switch(nm, ec = chart_ec_histogram(d), hp = chart_hp_histogram(d)),
-                  error = function(e) NULL)
+    p <- build(nm, switch(nm, ec = chart_ec_histogram(d), hp = chart_hp_histogram(d)))
     if (!is.null(p)) out[[nm]] <- p
   }
   out

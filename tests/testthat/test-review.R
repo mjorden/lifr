@@ -78,7 +78,15 @@ test_that("#6 the edit history survives [, j], rbind, and dplyr verbs", {
 test_that("#7 n_rows_changed counts readings that changed", {
   d <- data.frame(boring = "A", depth = 1:5, signal = c(0, 0, 0, 4, 5))
   z <- suppressMessages(lif_editor(d, "A", top = 1, bottom = 5))
-  z <- suppressMessages(lif_editor(z, "A", top = 1, bottom = 5))
+  # Re-applying the same edit changes 0 readings, which is now also a classed
+  # no-op warning (#32); the recorded count is still what this test pins.
+  # Muffled by hand rather than with expect_warning(class = ), which returns
+  # the condition and would drop the edited frame.
+  noop <- FALSE
+  z <- withCallingHandlers(
+    suppressMessages(lif_editor(z, "A", top = 1, bottom = 5)),
+    lifr_edit_noop = function(w) { noop <<- TRUE; invokeRestart("muffleWarning") })
+  expect_true(noop)
   expect_equal(edit_history(z)$n_rows_changed, c(2L, 0L))
   z2 <- suppressMessages(lif_zero_below_threshold(d, threshold = 1))
   expect_equal(edit_history(z2)$n_rows_changed, 0L)

@@ -76,6 +76,26 @@ The audit row records the kept span and the zeroed rows are its complement.
 The report's log plots read that note and shade the zeroed depths, not the
 kept ones.
 
+A keep window that contains none of the boring's readings would zero the
+whole boring, so it is an error rather than a silent blanking -- this is the
+guard against a feet/metres or decimal slip, which is easy to make in a plan
+table:
+
+```{r keep-miss, error = TRUE}
+# LIF-02 is a ~37 ft boring; 300-350 ft is a metres-for-feet slip
+lif_keep(lif, "LIF-02", top = 300, bottom = 350)
+```
+
+A *delete* window that changes nothing is harmless, so it warns rather than
+failing -- but it still tells you, naming the boring and its depth range, so
+a wrong plan row does not pass unnoticed:
+
+```{r delete-noop, warning = TRUE}
+invisible(lif_editor(lif, "LIF-02", top = 500, bottom = 600))
+```
+
+To blank a boring on purpose, call `lif_editor()` with no `top`/`bottom`.
+
 ### Whole-site helpers
 
 ```{r helpers, message = TRUE}
