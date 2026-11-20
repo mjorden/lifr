@@ -79,7 +79,8 @@ test_that("#7 n_rows_changed counts readings that changed", {
   d <- data.frame(boring = "A", depth = 1:5, signal = c(0, 0, 0, 4, 5))
   z <- suppressMessages(lif_editor(d, "A", top = 1, bottom = 5))
   # Re-applying the same edit changes 0 readings, which is now also a classed
-  # no-op warning (#32); the recorded count is still what this test pins.
+  # no-op warning (daktools #789); the recorded count is still what this
+  # test pins.
   # Muffled by hand rather than with expect_warning(class = ), which returns
   # the condition and would drop the edited frame.
   noop <- FALSE

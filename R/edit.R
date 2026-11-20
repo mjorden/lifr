@@ -86,7 +86,7 @@
   m
 }
 
-# -- Per-boring window checks (#32) -------------------------------------------
+# -- Per-boring window checks (daktools #789) --------------------------------
 # A feet/metres or decimal slip in one plan row ("B2 keep 300-350" on a 20 ft
 # boring) zeroed the whole boring, and "B1 delete 500-600" recorded a 0-row
 # edit, both silently. Split by consequence:
@@ -144,7 +144,7 @@
 
 # Run an editor call from a batch path, muffling its incidental warnings (the
 # "no top/bottom" notice, which a fully-NA plan row opts into) while letting
-# the #32 no-op warning through to the caller.
+# the daktools #789 no-op warning through to the caller.
 .muffle_but_noop <- function(expr) {
   withCallingHandlers(expr, warning = function(w) {
     if (!inherits(w, "lifr_edit_noop")) invokeRestart("muffleWarning")
@@ -249,7 +249,7 @@ lif_editor <- function(data, borename, top = 0, bottom = Inf, value = 0,
       n_iv <- r$n
     }
     total <- total + n_iv
-    if (n_iv == 0L)   # (#32)
+    if (n_iv == 0L)   # (daktools #789)
       .warn_edit_noop(out, borename, iv, sum(mask, na.rm = TRUE), "lif_editor",
                       preview)
   }
@@ -321,7 +321,7 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
     # top = -Inf: readings logged above ground surface (negative depth) are
     # "at or shallower than depth" too (#9).
     # A boring with nothing left to zero is expected here, not a typo'd
-    # window: the summary message below reports the total (#32).
+    # window: the summary message below reports the total (daktools #789).
     data <- withCallingHandlers(
       suppressMessages(lif_editor(data, b, top = -Inf, bottom = depth,
                                   value = value)),
@@ -408,7 +408,7 @@ lif_keep <- function(data, borename, top = -Inf, bottom = Inf, value = 0,
   in_boring <- data$boring == borename
   keep_mask <- .keep_window_mask(data$depth, intervals)
   # A window holding none of this boring's readings would zero the whole
-  # boring: an error, under preview = TRUE too (#32).
+  # boring: an error, under preview = TRUE too (daktools #789).
   .check_keep_window_hits(data, borename, keep_mask, intervals, "lif_keep")
   # NA-depth readings cannot be placed inside or outside a window; leave them
   # alone, as lif_editor() does (#9).
@@ -523,7 +523,8 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
     if (!is.na(top_v[i]) && !is.na(bottom_v[i]) && top_v[i] > bottom_v[i])
       row <- c(row, sprintf("top (%g) > bottom (%g)", top_v[i], bottom_v[i]))
     # A keep window holding none of its boring's readings would zero the
-    # whole boring -- the ft/m or decimal slip (#32). Checked here so a bad
+    # whole boring -- the ft/m or decimal slip (daktools #789). Checked here
+    # so a bad
     # plan fails before any row is applied, and so one error lists them all.
     # Rows already faulted above (unknown boring, inverted or empty window,
     # the '*' sentinel) are left to the checks that own them.
@@ -586,7 +587,7 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
     if (!is.na(top_v[i]))    args$top    <- top_v[i]
     if (!is.na(bottom_v[i])) args$bottom <- bottom_v[i]
     # Incidental warnings (the "no top/bottom" notice a fully-NA row opts
-    # into) stay muffled; a no-op delete reaches the caller (#32).
+    # into) stay muffled; a no-op delete reaches the caller (daktools #789).
     data <- .muffle_but_noop(suppressMessages(do.call(fn, args)))
   }
   message(sprintf("[lif_apply_edits] Applied %d edit(s).", nrow(edits)))

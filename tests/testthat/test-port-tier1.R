@@ -1,4 +1,5 @@
-# Defects ported from the daktools October/November 2026 fixes (#30-#35).
+# Defects ported from the daktools October/November 2026 fixes. Every issue
+# number below is a daktools issue: #662, #666, #667, #649, #789, #796.
 # Layers are located by geom class, never by index.
 
 geom_classes <- function(p) vapply(p$layers, function(l) class(l$geom)[1], character(1))
@@ -13,9 +14,9 @@ pk_site <- function(peaks) {
     depth = c(5, 10), signal = c(0, peaks[i]), stringsAsFactors = FALSE)))
 }
 
-# -- #31 boring_map() marker area is proportional to peak signal -------------
+# -- #662 boring_map() marker area is proportional to peak signal ------------
 
-test_that("#31 marker area is proportional to peak signal, with no floor", {
+test_that("#662 marker area is proportional to peak signal, with no floor", {
   peaks <- c(400, 100, 25, 4, 0.4)
   p <- boring_map(new_lif_data(pk_site(peaks)), repel = FALSE,
                   north_arrow = FALSE, scale_bar = FALSE)
@@ -28,7 +29,7 @@ test_that("#31 marker area is proportional to peak signal, with no floor", {
   expect_equal(sz[peaks == 4], 0.2 * 4)   # 1 % of peak -> 10 % of diameter
 })
 
-test_that("#31 the size key gives the maximum and its quarter and sixteenth", {
+test_that("#662 the size key gives the maximum and its quarter and sixteenth", {
   expect_equal(.size_key_breaks(c(0, 400)), c(25, 100, 400))
   expect_equal(.size_key_breaks(c(0, 1.6)), c(0.1, 0.4, 1.6))
   expect_equal(.size_key_breaks(c(0, 0)), 0)      # degenerate: no key
@@ -44,7 +45,7 @@ test_that("#31 the size key gives the maximum and its quarter and sixteenth", {
   expect_equal(sc$labels(1e6), "1,000,000")
 })
 
-test_that("#31 the non-detect ring never outweighs a real detect", {
+test_that("#662 the non-detect ring never outweighs a real detect", {
   mk <- function(peaks) new_lif_data(pk_site(peaks))
   # A detect smaller than the usual ring caps the ring at that detect.
   p <- boring_map(mk(c(400, 0.4, 0)), repel = FALSE, north_arrow = FALSE,
@@ -62,7 +63,7 @@ test_that("#31 the non-detect ring never outweighs a real detect", {
   expect_equal(unique(ggplot2::layer_data(p3, 1)$size), 2)
 })
 
-test_that("#31 size_by_signal = FALSE is unchanged and a negative floor is refused", {
+test_that("#662 size_by_signal = FALSE is unchanged and a negative floor is refused", {
   p <- boring_map(new_lif_data(pk_site(c(400, 100, 0))), size_by_signal = FALSE,
                   point_size = 5, repel = FALSE, north_arrow = FALSE,
                   scale_bar = FALSE)
@@ -77,9 +78,9 @@ test_that("#31 size_by_signal = FALSE is unchanged and a negative floor is refus
                            north_arrow = FALSE, scale_bar = FALSE))
 })
 
-# -- #32 per-boring window guards --------------------------------------------
+# -- #789 per-boring window guards -------------------------------------------
 
-test_that("#32 a keep window that misses its boring is an error, preview too", {
+test_that("#789 a keep window that misses its boring is an error, preview too", {
   d <- data.frame(boring = "A", depth = 1:20, signal = 5)
   expect_error(lif_keep(d, "A", top = 300, bottom = 350),
                class = "lifr_keep_window_miss")
@@ -95,7 +96,7 @@ test_that("#32 a keep window that misses its boring is an error, preview too", {
   expect_silent(suppressMessages(lif_keep(d, "A", top = 19.5, bottom = 400)))
 })
 
-test_that("#32 the guard is per boring, not per site", {
+test_that("#789 the guard is per boring, not per site", {
   # B's window is inside the SITE's depth range but misses B entirely.
   d <- data.frame(boring = rep(c("A", "B"), c(20, 5)),
                   depth = c(1:20, 1:5), signal = 5)
@@ -104,7 +105,7 @@ test_that("#32 the guard is per boring, not per site", {
   expect_silent(suppressMessages(lif_keep(d, "A", top = 15, bottom = 18)))
 })
 
-test_that("#32 a delete that changes nothing warns and says why", {
+test_that("#789 a delete that changes nothing warns and says why", {
   d <- data.frame(boring = "A", depth = 1:5, signal = c(0, 0, 3, 4, 5))
   w <- tryCatch(suppressMessages(lif_editor(d, "A", top = 50, bottom = 60)),
                 warning = identity)
@@ -123,14 +124,14 @@ test_that("#32 a delete that changes nothing warns and says why", {
   expect_silent(suppressMessages(lif_editor(d, "A", top = 3, bottom = 4)))
 })
 
-test_that("#32 lif_zero_shallow muffles the no-op warning it expects", {
+test_that("#789 lif_zero_shallow muffles the no-op warning it expects", {
   d <- data.frame(boring = rep(c("A", "B"), each = 5), depth = rep(1:5, 2),
                   signal = c(0, 0, 3, 4, 5, 9, 9, 9, 9, 9))
   z <- suppressMessages(lif_zero_shallow(d, depth = 2))
   expect_silent(suppressMessages(lif_zero_shallow(z, depth = 2)))
 })
 
-test_that("#32 a plan with a bad keep row fails before anything is applied", {
+test_that("#789 a plan with a bad keep row fails before anything is applied", {
   d <- data.frame(boring = rep(c("A", "B"), c(20, 5)),
                   depth = c(1:20, 1:5), signal = 5)
   plan <- data.frame(boring = c("A", "B"), action = c("delete", "keep"),
@@ -147,9 +148,9 @@ test_that("#32 a plan with a bad keep row fails before anything is applied", {
                  class = "lifr_edit_noop")
 })
 
-# -- #33 chart_max_response bar kinds and caption ----------------------------
+# -- #667 chart_max_response bar kinds and caption ---------------------------
 
-test_that("#33 the caption names only the encodings the bars carry", {
+test_that("#667 the caption names only the encodings the bars carry", {
   lif <- demo_lif()
   cap <- function(p) p$labels$caption
   # Every bar filled: the emission clause, no hollow clause.
@@ -169,7 +170,7 @@ test_that("#33 the caption names only the encodings the bars carry", {
     expect_match(cap(p), "Grey = peak below the 1 %RE screening floor")
 })
 
-test_that("#33 a colour-less bar is hollow, not a plausible product colour", {
+test_that("#667 a colour-less bar is hollow, not a plausible product colour", {
   lif <- demo_lif()
   no_col <- lif; no_col$color <- NULL
   ld <- layer_by_geom(chart_max_response(no_col), "GeomCol")
@@ -185,7 +186,7 @@ test_that("#33 a colour-less bar is hollow, not a plausible product colour", {
   expect_equal(ld2$fill[2], "#6B8E23")
 })
 
-# -- #34 a failed chart is reported, not logged as an absent channel ---------
+# -- #649 a failed chart is reported, not logged as an absent channel --------
 
 # Run `expr`, returning its value and every warning it raised.
 with_warnings <- function(expr) {
@@ -196,7 +197,7 @@ with_warnings <- function(expr) {
   list(value = val, warnings = w)
 }
 
-test_that("#34 a builder that throws is warned and recorded, not skipped", {
+test_that("#649 a builder that throws is warned and recorded, not skipped", {
   lif <- demo_lif()
   bad <- lif; bad$signal <- as.list(bad$signal)   # makes two builders throw
   out <- withr::local_tempdir()
@@ -213,7 +214,7 @@ test_that("#34 a builder that throws is warned and recorded, not skipped", {
   expect_length(res$value, 2L)
 })
 
-test_that("#34 a save that fails is warned and recorded", {
+test_that("#649 a save that fails is warned and recorded", {
   lif <- demo_lif()
   notadir <- withr::local_tempfile()
   writeLines("x", notadir)
@@ -224,7 +225,7 @@ test_that("#34 a save that fails is warned and recorded", {
   expect_equal(unique(attr(res$value, "failed")$stage), "save")
 })
 
-test_that("#34 an absent channel is still a silent, unrecorded skip", {
+test_that("#649 an absent channel is still a silent, unrecorded skip", {
   lif <- demo_lif()
   lif$ec <- NULL; lif$hp <- NULL
   out <- withr::local_tempdir()
@@ -234,7 +235,7 @@ test_that("#34 an absent channel is still a silent, unrecorded skip", {
                                  "site_chart_peak_by_boring.png"))
 })
 
-test_that("#34 a stale PNG at a failed chart's path is removed", {
+test_that("#649 a stale PNG at a failed chart's path is removed", {
   lif <- demo_lif()
   bad <- lif; bad$signal <- as.list(bad$signal)
   out <- withr::local_tempdir()
@@ -244,7 +245,7 @@ test_that("#34 a stale PNG at a failed chart's path is removed", {
   expect_false(file.exists(stale))
 })
 
-test_that("#34 process_site logs every chart it could not produce", {
+test_that("#649 process_site logs every chart it could not produce", {
   site <- withr::local_tempdir()
   write_tiny_site(site)
   out <- withr::local_tempdir()
@@ -259,9 +260,9 @@ test_that("#34 process_site logs every chart it could not produce", {
   expect_false(any(rows$action == "export_site_charts()"))  # no "complete set"
 })
 
-# -- #35 the facet sheet draws the emission colour ---------------------------
+# -- #666 the facet sheet draws the emission colour --------------------------
 
-test_that("#35 lif_plot_all(layout = 'facet') draws the emission colour", {
+test_that("#666 lif_plot_all(layout = 'facet') draws the emission colour", {
   lif <- demo_lif()
   p <- lif_plot_all(lif)
   expect_setequal(geom_classes(p), c("GeomRect", "GeomSegment", "GeomLine"))
@@ -272,14 +273,14 @@ test_that("#35 lif_plot_all(layout = 'facet') draws the emission colour", {
   expect_lt(p$coordinates$limits$y[1], 0)
 })
 
-test_that("#35 a frame with no colour renders exactly as before", {
+test_that("#666 a frame with no colour renders exactly as before", {
   lif <- demo_lif(); lif$color <- NULL
   p <- lif_plot_all(lif)
   expect_setequal(geom_classes(p), c("GeomArea", "GeomLine"))
   expect_equal(p$coordinates$limits$y[1], 0)
 })
 
-test_that("#35 colour is decided per boring on a mixed sheet", {
+test_that("#666 colour is decided per boring on a mixed sheet", {
   lif <- demo_lif()
   lif$color[lif$boring %in% c("LIF-01", "LIF-02")] <- NA
   p <- lif_plot_all(lif)
@@ -290,7 +291,7 @@ test_that("#35 colour is decided per boring on a mixed sheet", {
   expect_length(unique(layer_by_geom(p, "GeomRect")$PANEL), 10L)
 })
 
-test_that("#35 each boring's rects span its own sample interval", {
+test_that("#666 each boring's rects span its own sample interval", {
   lif <- demo_lif()
   a <- lif[lif$boring == "LIF-01", ]
   b <- transform(lif[lif$boring == "LIF-02", ], depth = depth * 2)
@@ -302,9 +303,9 @@ test_that("#35 each boring's rects span its own sample interval", {
   expect_equal(unname(spans[2] / spans[1]), 2, tolerance = 1e-6)
 })
 
-# -- #30 area fills break at NA ----------------------------------------------
+# -- #796 area fills break at NA ---------------------------------------------
 
-test_that("#30 an NA interval breaks the area fill instead of being filled", {
+test_that("#796 an NA interval breaks the area fill instead of being filled", {
   d <- data.frame(boring = "A", depth = 1:7, signal = c(1, 5, NA, NA, 4, 2, 1))
   ld <- layer_by_geom(lif_plot(d, "A"), "GeomArea")
   # The NA rows survive into the layer data, so GeomRibbon splits the
@@ -326,7 +327,7 @@ test_that("#30 an NA interval breaks the area fill instead of being filled", {
   expect_equal(polys, 2L)
 })
 
-test_that("#30 a frame with no NA is unchanged, and no warning is emitted", {
+test_that("#796 a frame with no NA is unchanged, and no warning is emitted", {
   d <- data.frame(boring = "A", depth = 1:5, signal = c(1, 5, 3, 4, 1))
   ld <- layer_by_geom(lif_plot(d, "A"), "GeomArea")
   expect_equal(nrow(ld), 5L)
@@ -337,7 +338,7 @@ test_that("#30 a frame with no NA is unchanged, and no warning is emitted", {
   expect_silent(ggplot2::ggplot_build(lif_plot(dna, "A")))
 })
 
-test_that("#30 a value = NA edit shows as a gap on the QC comparison", {
+test_that("#796 a value = NA edit shows as a gap on the QC comparison", {
   d <- data.frame(boring = "A", depth = 1:6, signal = c(1, 5, 6, 4, 2, 1))
   e <- suppressMessages(lif_editor(d, "A", top = 3, bottom = 4, value = NA))
   plots <- suppressMessages(qc_compare(d, e))

@@ -30,7 +30,8 @@ chart_max_response <- function(data, thresholds = c(1, 5)) {
   pk <- pk[pk$sampled, , drop = FALSE]
   if (!nrow(pk)) return(NULL)
   floor_re <- if (length(thresholds)) min(thresholds) else 0
-  # Three bar kinds (#33). The caption used to claim "bar colour = emission
+  # Three bar kinds (daktools #667). The caption used to claim "bar colour
+  # = emission
   # colour at peak-signal depth" over every chart, and filled the
   # colour-less bars .LIFR_FILL -- a muted olive, a plausible fluorescence
   # hue -- so a delivery that carried no colour channel at all shipped a
@@ -233,7 +234,7 @@ export_site_charts <- function(data, output_dir = ".", prefix = "site",
   fail <- function(nm, stage, f, e) {
     failed[[length(failed) + 1L]] <<- data.frame(
       chart = nm, stage = stage, error = flat(e), stringsAsFactors = FALSE)
-    # Never leave last run's PNG where this run's chart belongs (#34).
+    # Never leave last run's PNG where this run's chart belongs (daktools #649).
     if (!is.null(f) && file.exists(f)) unlink(f)
     warning(sprintf("export_site_charts: chart '%s' failed to %s and was skipped: %s",
                     nm, stage, flat(e)), call. = FALSE)
@@ -241,7 +242,7 @@ export_site_charts <- function(data, output_dir = ".", prefix = "site",
   for (nm in names(specs)) {
     f <- file.path(output_dir, paste0(prefix, "_chart_", nm, ".png"))
     # NULL is the documented "the site has no data for this chart" return and
-    # is a silent skip; an error is a failure and is reported (#34).
+    # is a silent skip; an error is a failure and is reported (daktools #649).
     p <- tryCatch(specs[[nm]](), error = function(e) { fail(nm, "build", f, e); NULL })
     if (is.null(p)) next
     ok <- tryCatch({
