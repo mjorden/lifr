@@ -74,10 +74,38 @@ lif_read <- function(file, legacy = FALSE) {
   if (!file.exists(file))
     stop("lif_read: file not found: ", file, call. = FALSE)
   sep <- .sniff_sep(file)
-  raw <- utils::read.table(file, header = !isTRUE(legacy), sep = sep,
+  lines <- readLines(file, warn = FALSE)
+  lines <- lines[nzchar(trimws(lines))]
+  if (!length(lines))
+    stop("lif_read: '", basename(file), "' is empty.", call. = FALSE)
+  count <- function(l) utils::count.fields(textConnection(l), sep = sep,
+                                           quote = "\"", comment.char = "")
+  nf <- count(lines)
+  # Instrument exports often end every data line with a delimiter. Left in,
+  # read.table's "header is one field short" rule would silently use the
+  # first column as row names and shift every channel left by one (#1).
+  # Only the SURPLUS trailing empty fields are removed, so a genuinely blank
+  # last cell under a full-width header is kept as NA.
+  if (nzchar(sep) && !isTRUE(legacy)) {
+    h <- nf[1]
+    over <- which(nf > h)
+    for (i in over) {
+      extra <- nf[i] - h
+      lines[i] <- sub(paste0("(", sep, " *){", extra, "}$"), "", lines[i])
+    }
+    if (length(over)) nf <- count(lines)
+  }
+  if (length(unique(nf)) > 1L)
+    stop(sprintf(paste0(
+      "lif_read: '%s' has lines with different field counts (%s); the ",
+      "header and every data line must have the same number of columns."),
+      basename(file), paste(sort(unique(nf)), collapse = ", ")), call. = FALSE)
+  # Everything is read as character and converted deliberately below, so a
+  # digits-only colour column such as 000000 cannot be turned into 0 (#2).
+  raw <- utils::read.table(text = lines, header = !isTRUE(legacy), sep = sep,
                            check.names = FALSE, stringsAsFactors = FALSE,
-                           comment.char = "", quote = "\"",
-                           strip.white = TRUE)
+                           comment.char = "", quote = "\"", strip.white = TRUE,
+                           colClasses = "character", row.names = NULL)
   if (isTRUE(legacy)) {
     names(raw) <- switch(as.character(ncol(raw)),
       "11" = .LEGACY_11,
@@ -103,8 +131,14 @@ lif_read <- function(file, legacy = FALSE) {
     raw[[cc]] <- v
   }
   if ("color" %in% names(raw)) raw$color <- .norm_hex(raw$color)
-  raw$boring <- sub(.LIF_FILE_PATTERN, "", basename(file), ignore.case = TRUE)
-  raw$boring <- sub("\\.(txt|csv)$", "", raw$boring, ignore.case = TRUE)
+  # Remaining columns: numeric where every value parses, otherwise text.
+  for (cc in setdiff(names(raw), c("depth", "signal", "ec", "hp", "color"))) {
+    v <- raw[[cc]]
+    raw[[cc]] <- utils::type.convert(v, as.is = TRUE, na.strings = c("NA", ""))
+  }
+  boring <- sub(.LIF_FILE_PATTERN, "", basename(file), ignore.case = TRUE)
+  boring <- sub("\\.(txt|csv)$", "", boring, ignore.case = TRUE)
+  raw$boring <- rep(boring, nrow(raw))   # rep(): a header-only file has 0 rows
   .order_lif_cols(raw)
 }
 
@@ -121,7 +155,8 @@ lif_read <- function(file, legacy = FALSE) {
   all_cols <- unique(unlist(lapply(rows, names)))
   differing <- vapply(rows, function(r) !setequal(names(r), all_cols), logical(1))
   if (any(differing)) {
-    ref <- names(rows[[which(!differing)[1] %||% 1L]])
+    ref_i <- if (any(!differing)) which(!differing)[1] else 1L
+    ref <- names(rows[[ref_i]])
     detail <- vapply(which(differing), function(i) {
       extra <- setdiff(names(rows[[i]]), ref)
       miss  <- setdiff(ref, names(rows[[i]]))
@@ -135,7 +170,9 @@ lif_read <- function(file, legacy = FALSE) {
             call. = FALSE)
   }
   rows <- lapply(rows, function(r) {
-    for (cc in setdiff(all_cols, names(r))) r[[cc]] <- NA
+    # rep() rather than a scalar: assigning NA into a 0-row frame (a
+    # header-only log) errors with "replacement has 1 row, data has 0" (#3).
+    for (cc in setdiff(all_cols, names(r))) r[[cc]] <- rep(NA, nrow(r))
     r[, all_cols, drop = FALSE]
   })
   out <- do.call(rbind, rows)
@@ -166,10 +203,21 @@ read_locations <- function(file) {
                            stringsAsFactors = FALSE, strip.white = TRUE,
                            comment.char = "", quote = "\"")
   names(loc) <- tolower(trimws(names(loc)))
-  names(loc)[names(loc) %in% c("x", "east")]      <- "easting"
-  names(loc)[names(loc) %in% c("y", "north")]     <- "northing"
-  names(loc)[names(loc) %in% c("elevation", "elev", "z", "ground")] <- "msl"
-  names(loc)[names(loc) %in% c("name", "hole", "id")] <- "boring"
+  # Aliases are applied only when the canonical column is absent; renaming
+  # unconditionally created two `easting` columns when a file carried both
+  # `x` and `easting`, and the first silently won (#4).
+  aliases <- list(easting = c("x", "east"), northing = c("y", "north"),
+                  msl = c("elevation", "elev", "z", "ground"),
+                  boring = c("name", "hole", "id"))
+  for (canon in names(aliases)) {
+    if (canon %in% names(loc)) next
+    hit <- which(names(loc) %in% aliases[[canon]])
+    if (length(hit)) names(loc)[hit[1]] <- canon
+  }
+  dup_names <- unique(names(loc)[duplicated(names(loc))])
+  if (length(dup_names))
+    stop(sprintf("read_locations: '%s' has duplicated column name(s) after aliasing: %s.",
+                 basename(file), paste(dup_names, collapse = ", ")), call. = FALSE)
   .check_required_cols(loc, c("boring", "easting", "northing", "msl"),
                        source = sprintf("Locations file '%s'", basename(file)))
   loc$boring <- trimws(as.character(loc$boring))
@@ -271,7 +319,7 @@ read_locations <- function(file) {
 #' @seealso `vignette("data-format")` for the file formats in detail.
 #' @export
 lif_import <- function(data_dir = ".", locations_file = NULL,
-                       pattern = .LIF_FILE_PATTERN, legacy = FALSE,
+                       pattern = "\\.lif\\.dat\\.(txt|csv)$", legacy = FALSE,
                        verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message(...)
   if (!dir.exists(data_dir))
@@ -287,6 +335,14 @@ lif_import <- function(data_dir = ".", locations_file = NULL,
     say("  reading ", basename(f))
     lif_read(f, legacy = legacy)
   })
+  empty <- vapply(rows, function(r) nrow(r) == 0L, logical(1))
+  if (any(empty)) {
+    warning("lif_import: log file(s) with a header but no readings (boring omitted): ",
+            paste(basename(files[empty]), collapse = ", "), call. = FALSE)
+    rows <- rows[!empty]; files <- files[!empty]
+    if (!length(rows))
+      stop("lif_import: every log file in '", data_dir, "' is empty.", call. = FALSE)
+  }
   data <- .bind_fill(rows, files)
   n_in <- nrow(data)
 

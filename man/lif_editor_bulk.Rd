@@ -7,7 +7,7 @@
 lif_editor_bulk(
   data,
   top = 0,
-  bottom = 1000,
+  bottom = Inf,
   value = 0,
   preview = FALSE,
   verbose = TRUE
@@ -17,8 +17,9 @@ lif_editor_bulk(
 \item{data}{A \link{lif_data} frame (any data frame with \code{boring}, \code{depth},
 \code{signal}).}
 
-\item{top, bottom}{Depth interval (ft) to zero. Defaults \code{0} and \code{1000}
-cover the whole boring, which triggers a warning.}
+\item{top, bottom}{Depth interval (ft) to zero. Defaults \code{0} and \code{Inf}
+cover the whole boring, which triggers a warning. Readings with an \code{NA}
+depth are never inside a window and are left unchanged.}
 
 \item{value}{Replacement value. Default 0; \code{NA} is allowed.}
 

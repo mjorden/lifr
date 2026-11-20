@@ -8,7 +8,7 @@ lif_editor(
   data,
   borename,
   top = 0,
-  bottom = 1000,
+  bottom = Inf,
   value = 0,
   delete = NULL,
   preview = FALSE
@@ -20,8 +20,9 @@ lif_editor(
 
 \item{borename}{Boring name to edit.}
 
-\item{top, bottom}{Depth interval (ft) to zero. Defaults \code{0} and \code{1000}
-cover the whole boring, which triggers a warning.}
+\item{top, bottom}{Depth interval (ft) to zero. Defaults \code{0} and \code{Inf}
+cover the whole boring, which triggers a warning. Readings with an \code{NA}
+depth are never inside a window and are left unchanged.}
 
 \item{value}{Replacement value. Default 0; \code{NA} is allowed.}
 
@@ -43,14 +44,31 @@ artifacts: surface smear, a rod change, a fluorescent mineral seam. The
 inverse, keeping one clean window and zeroing everything else, is
 \code{\link[=lif_keep]{lif_keep()}}.
 }
+\section{No-op edits}{
+
+A window that changes 0 readings -- one that misses the boring's depth
+range, or that covers only readings already holding \code{value} -- raises a
+warning of class \code{"lifr_edit_noop"} naming the boring, the window, and
+the boring's depth range, under \code{preview = TRUE} too. It is a warning and
+not an error because a 0-row delete changes nothing; it is there to catch
+the plan row whose depths are wrong. Warnings are not messages, so
+\code{process_site(quiet = TRUE)} leaves it visible.
+\code{\link[=lif_zero_shallow]{lif_zero_shallow()}} muffles it, since a boring with nothing left to zero
+is expected there.
+}
+
 \section{The audit trail}{
 
 Every editor appends a row to \code{attr(data, "edits")} recording the
-timestamp, function, boring, depth window, replacement value, and number
-of readings changed. The history prints with the frame, is returned by
-\code{\link[=edit_history]{edit_history()}}, can be saved with \code{\link[=edit_history_save]{edit_history_save()}}, and is
-rendered in full on the site report's Processing history tab. dplyr
-verbs drop it; see \code{\link[=lif_get_edits]{lif_get_edits()}} to carry it across a pipe.
+timestamp, function, boring, depth window, replacement value, and
+\code{n_rows_changed}: the number of readings whose value actually changed,
+so re-applying an edit or zeroing readings already at zero records 0.
+The history prints with the frame, is returned by \code{\link[=edit_history]{edit_history()}}, can
+be saved with \code{\link[=edit_history_save]{edit_history_save()}}, and is rendered in full on the site
+report's Processing history tab. It survives \code{[}, the dplyr verbs, and
+\code{rbind()} when the edited frame is its first argument; see
+\code{\link[=new_edited_data]{new_edited_data()}} for the full rules, the operations that drop it, and
+\code{\link[=lif_get_edits]{lif_get_edits()}} to carry it across those.
 }
 
 \section{Choosing an editor}{

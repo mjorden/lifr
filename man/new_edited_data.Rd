@@ -23,14 +23,49 @@ attribute is present; \code{df} unchanged otherwise.
 \description{
 Prepends the \code{edited_data} class to a frame that has an \code{edits}
 attribute, so printing it shows a provenance banner. Every editor tags its
-output automatically. Like the attribute itself, the class is stripped by
-dplyr verbs and \code{tibble::as_tibble()}; use \code{\link[=lif_get_edits]{lif_get_edits()}} /
-\code{\link[=lif_set_edits]{lif_set_edits()}} to carry the history across such a step.
+output automatically.
 }
+\section{What keeps the history}{
+
+These rules are verified by test (\code{test-port-tier2.R}) rather than
+asserted, because most of them depend on S3 dispatch finding a \code{lifr}
+method, and that depends on \emph{which} argument carries the class.
+
+Kept:
+\itemize{
+\item \code{[} -- rows, columns, or both.
+\item The dplyr verbs -- \code{filter()}, \code{mutate()}, \code{select()}, \code{arrange()},
+and the joins -- through \code{dplyr_reconstruct()}.
+\item \code{rbind()}, \strong{when its first argument} is an \code{edited_data} or
+\code{lif_data} frame: then every argument's history is concatenated in
+argument order. This is the one operation that merges two histories.
+}
+
+Lost:
+\itemize{
+\item \code{rbind()} when the first argument is a plain data frame or tibble.
+\code{rbind.data.frame} is dispatched instead, and the result silently
+carries no class and no history at all -- not even the classed
+argument's. Put the edited frame first.
+\item \code{dplyr::bind_rows()} keeps at most the \strong{first} argument's history and
+never concatenates two. Use \code{rbind()} to combine edited frames.
+\item \code{merge()}, and rebuilding a frame from its columns.
+\item \code{tibble::as_tibble()} and \code{as.data.frame()} drop the \strong{class}, so the
+provenance banner stops printing. The attribute itself usually
+survives, and \code{edit_history()} will still read it, but nothing
+maintains it from then on: a declassed frame placed first in \code{rbind()}
+keeps only its own history and silently drops the rest.
+}
+
+Use \code{\link[=lif_get_edits]{lif_get_edits()}} / \code{\link[=lif_set_edits]{lif_set_edits()}} around the operations that lose
+it.
+}
+
 \examples{
 d  <- data.frame(boring = "B1", depth = 1:3, signal = c(5, 0, 2))
 ed <- lif_zero_shallow(d, depth = 1)
 inherits(ed, "edited_data")
+nrow(edit_history(ed[, c("boring", "depth", "signal")]))
 }
 \seealso{
 \code{\link[=edit_history]{edit_history()}}

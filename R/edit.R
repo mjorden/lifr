@@ -10,6 +10,8 @@
 # Append one row to the edits attribute. boring = NA means "all borings".
 .record_edit <- function(data, fn, boring, top, bottom, value, n_rows_changed,
                          notes = NA_character_) {
+  if (is.na(n_rows_changed))
+    stop(fn, ": internal error -- the number of changed rows is NA.", call. = FALSE)
   new_row <- data.frame(
     timestamp      = format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
     fn             = fn,
@@ -53,15 +55,100 @@
   invisible(TRUE)
 }
 
-.check_edit_target <- function(data, fn_name) {
+.check_edit_target <- function(data, fn_name, value = 0) {
   .check_data_arg(data, fn_name)
-  .check_required_cols(data, c("boring", "depth", "signal"), source = fn_name)
+  .check_required_cols(data, .LIF_SCHEMA, source = fn_name)
+  .check_scalar_number(value, "value", fn_name, allow_na = TRUE)
   invisible(TRUE)
+}
+
+# Apply `value` over `mask` and return the number of readings that actually
+# changed (not the number masked): re-applying an edit, or zeroing readings
+# already at zero, must count 0 (#7). NA depths never fall inside a window.
+.apply_mask <- function(data, mask, value) {
+  mask <- mask & !is.na(mask)
+  n <- sum(mask & !.same_value(data$signal, value))
+  data$signal[mask] <- value
+  list(data = data, n = as.integer(n))
 }
 
 .fmt_intervals <- function(intervals) {
   paste(vapply(intervals, function(iv) sprintf("%g-%g ft", iv[1L], iv[2L]),
                character(1)), collapse = ", ")
+}
+
+# TRUE where a depth falls inside any kept window. NA depths are never
+# inside or outside a window and are left to the caller.
+.keep_window_mask <- function(depth, intervals) {
+  m <- rep(FALSE, length(depth))
+  for (iv in intervals)
+    m <- m | (!is.na(depth) & depth >= iv[1L] & depth <= iv[2L])
+  m
+}
+
+# -- Per-boring window checks (daktools #789) --------------------------------
+# A feet/metres or decimal slip in one plan row ("B2 keep 300-350" on a 20 ft
+# boring) zeroed the whole boring, and "B1 delete 500-600" recorded a 0-row
+# edit, both silently. Split by consequence:
+#   keep   -- a window holding none of the boring's readings zeroes every
+#             reading in it: an ERROR.
+#   delete -- a window that changes 0 readings is a harmless no-op: a classed
+#             WARNING ("lifr_edit_noop"), so a batch caller can surface it
+#             without the run failing. Warnings are not messages, so
+#             process_site(quiet = TRUE) -- which suppresses messages only --
+#             leaves it visible.
+
+# "its readings span 0.05-20 ft" for one boring, for the messages below.
+.boring_depth_span <- function(data, borename) {
+  d <- data$depth[which(data$boring == borename & !is.na(data$depth))]
+  if (!length(d)) return("it has no readings with a depth")
+  sprintf("its readings span %g-%g ft", min(d), max(d))
+}
+
+# A keep whose window(s) hold none of that boring's readings would zero the
+# whole boring. Called from lif_keep() (direct calls, plan rows and preview)
+# and from lif_apply_edits()'s row validation.
+.check_keep_window_hits <- function(data, borename, keep_mask, intervals,
+                                    caller) {
+  if (any(keep_mask & data$boring == borename, na.rm = TRUE))
+    return(invisible(TRUE))
+  rlang::abort(sprintf(paste0(
+    "%s: the keep window %s contains none of the readings of boring '%s' (%s), ",
+    "so every reading in the boring would be zeroed. Check the window ",
+    "(a feet/metres or decimal slip?); to blank the whole boring on ",
+    "purpose, use lif_editor() with no top/bottom."),
+    caller, .fmt_intervals(intervals), borename,
+    .boring_depth_span(data, borename)),
+    class = "lifr_keep_window_miss", boring = borename, call = NULL)
+}
+
+# A delete window that changed 0 readings. `n_in_window` tells a window that
+# misses the boring (the typo case) from one whose readings already hold the
+# replacement value (a re-applied edit, #7).
+.warn_edit_noop <- function(data, borename, iv, n_in_window, caller,
+                            preview = FALSE) {
+  why <- if (n_in_window == 0L)
+    sprintf("the window contains none of the boring's readings (%s)",
+            .boring_depth_span(data, borename))
+  else
+    sprintf(paste0("its %d reading(s) in the window already hold the ",
+                   "replacement value (%s)"),
+            n_in_window, .boring_depth_span(data, borename))
+  rlang::warn(sprintf(
+    "%s: the delete window %g-%g ft on boring '%s' %s 0 readings -- %s.",
+    caller, iv[1L], iv[2L], borename,
+    if (preview) "would change" else "changed", why),
+    class = "lifr_edit_noop", boring = borename,
+    top = iv[1L], bottom = iv[2L])
+}
+
+# Run an editor call from a batch path, muffling its incidental warnings (the
+# "no top/bottom" notice, which a fully-NA plan row opts into) while letting
+# the daktools #789 no-op warning through to the caller.
+.muffle_but_noop <- function(expr) {
+  withCallingHandlers(expr, warning = function(w) {
+    if (!inherits(w, "lifr_edit_noop")) invokeRestart("muffleWarning")
+  })
 }
 
 #' Zero LIF signal inside a depth window for one boring
@@ -75,8 +162,9 @@
 #' @param data A [lif_data] frame (any data frame with `boring`, `depth`,
 #'   `signal`).
 #' @param borename Boring name to edit.
-#' @param top,bottom Depth interval (ft) to zero. Defaults `0` and `1000`
-#'   cover the whole boring, which triggers a warning.
+#' @param top,bottom Depth interval (ft) to zero. Defaults `0` and `Inf`
+#'   cover the whole boring, which triggers a warning. Readings with an `NA`
+#'   depth are never inside a window and are left unchanged.
 #' @param value Replacement value. Default 0; `NA` is allowed.
 #' @param delete Optional list of `c(top, bottom)` pairs to zero several
 #'   intervals in one call. Cannot be combined with `top`/`bottom`.
@@ -85,13 +173,27 @@
 #' @return The edited frame with one audit row per interval appended to its
 #'   edit history (see [edit_history()]). With `preview = TRUE` the input is
 #'   returned unchanged.
+#' @section No-op edits:
+#' A window that changes 0 readings -- one that misses the boring's depth
+#' range, or that covers only readings already holding `value` -- raises a
+#' warning of class `"lifr_edit_noop"` naming the boring, the window, and
+#' the boring's depth range, under `preview = TRUE` too. It is a warning and
+#' not an error because a 0-row delete changes nothing; it is there to catch
+#' the plan row whose depths are wrong. Warnings are not messages, so
+#' `process_site(quiet = TRUE)` leaves it visible.
+#' [lif_zero_shallow()] muffles it, since a boring with nothing left to zero
+#' is expected there.
 #' @section The audit trail:
 #' Every editor appends a row to `attr(data, "edits")` recording the
-#' timestamp, function, boring, depth window, replacement value, and number
-#' of readings changed. The history prints with the frame, is returned by
-#' [edit_history()], can be saved with [edit_history_save()], and is
-#' rendered in full on the site report's Processing history tab. dplyr
-#' verbs drop it; see [lif_get_edits()] to carry it across a pipe.
+#' timestamp, function, boring, depth window, replacement value, and
+#' `n_rows_changed`: the number of readings whose value actually changed,
+#' so re-applying an edit or zeroing readings already at zero records 0.
+#' The history prints with the frame, is returned by [edit_history()], can
+#' be saved with [edit_history_save()], and is rendered in full on the site
+#' report's Processing history tab. It survives `[`, the dplyr verbs, and
+#' `rbind()` when the edited frame is its first argument; see
+#' [new_edited_data()] for the full rules, the operations that drop it, and
+#' [lif_get_edits()] to carry it across those.
 #' @section Choosing an editor:
 #' * A known artifact inside an otherwise good log: `lif_editor()` with
 #'   `top`/`bottom`, or several windows through `delete`.
@@ -117,13 +219,13 @@
 #' edit_history(lif)
 #' @seealso `vignette("editing")`
 #' @export
-lif_editor <- function(data, borename, top = 0, bottom = 1000, value = 0,
+lif_editor <- function(data, borename, top = 0, bottom = Inf, value = 0,
                        delete = NULL, preview = FALSE) {
-  .check_edit_target(data, "lif_editor")
+  .check_edit_target(data, "lif_editor", value)
   if (!is.null(delete) && (!missing(top) || !missing(bottom)))
     stop("Use either `delete=` or `top=`/`bottom=`, not both.", call. = FALSE)
   .check_borename(data, borename)
-  if (missing(top) && missing(bottom) && is.null(delete))
+  if (missing(top) && missing(bottom) && is.null(delete) && !isTRUE(preview))
     warning(sprintf(paste0(
       "lif_editor('%s') called with no top/bottom; zeroing the ENTIRE boring. ",
       "Pass top= and/or bottom= to silence this warning."), borename),
@@ -140,15 +242,21 @@ lif_editor <- function(data, borename, top = 0, bottom = 1000, value = 0,
   for (iv in intervals) {
     mask <- out$boring == borename & !is.na(out$depth) &
             out$depth >= iv[1L] & out$depth <= iv[2L]
-    n <- sum(mask)
-    total <- total + n
-    if (!preview) {
-      out$signal[mask] <- value
-      out <- .record_edit(out, "lif_editor", borename, iv[1L], iv[2L], value, n)
+    if (preview) {
+      n_iv <- sum(mask & !.same_value(out$signal, value), na.rm = TRUE)
+    } else {
+      r <- .apply_mask(out, mask, value)
+      out <- .record_edit(r$data, "lif_editor", borename, iv[1L], iv[2L], value, r$n)
+      n_iv <- r$n
     }
+    total <- total + n_iv
+    if (n_iv == 0L)   # (daktools #789)
+      .warn_edit_noop(out, borename, iv, sum(mask, na.rm = TRUE), "lif_editor",
+                      preview)
   }
-  message(sprintf("[lif_editor] %s%s: zeroed %d row(s) (%s)",
-                  if (preview) "PREVIEW " else "", borename, total,
+  message(sprintf("[lif_editor] %s%s: %s %d reading(s) (%s)",
+                  if (preview) "PREVIEW " else "", borename,
+                  if (preview) "would change" else "changed", total,
                   .fmt_intervals(intervals)))
   if (preview) data else out
 }
@@ -165,27 +273,28 @@ lif_editor <- function(data, borename, top = 0, bottom = 1000, value = 0,
 #' lif <- lif_editor_bulk(lif, top = 0, bottom = 2)
 #' lif_editor_bulk(lif, top = 0, bottom = 1, preview = TRUE)
 #' @export
-lif_editor_bulk <- function(data, top = 0, bottom = 1000, value = 0,
+lif_editor_bulk <- function(data, top = 0, bottom = Inf, value = 0,
                             preview = FALSE, verbose = TRUE) {
-  .check_edit_target(data, "lif_editor_bulk")
-  if (missing(top) && missing(bottom))
+  .check_edit_target(data, "lif_editor_bulk", value)
+  if (missing(top) && missing(bottom) && !isTRUE(preview))
     warning("lif_editor_bulk() called with no top/bottom; zeroing the ENTIRE ",
             "dataset. Pass top= and/or bottom= to silence this warning.",
             call. = FALSE)
   .check_depth_range(top, bottom)
   mask <- !is.na(data$depth) & data$depth >= top & data$depth <= bottom
-  n <- sum(mask)
-  borings <- sort(unique(data$boring))
-  counts <- vapply(borings, function(b) sum(data$boring == b & mask), integer(1))
+  changed <- mask & !.same_value(data$signal, value)
+  n <- sum(changed)
+  borings <- sort(unique(as.character(data$boring)))
+  counts <- vapply(borings, function(b) sum(data$boring == b & changed), integer(1))
   counts <- counts[counts > 0L]
-  message(sprintf("[lif_editor_bulk] %szeroed %d row(s) (%g-%g ft) across %d boring(s)",
-                  if (preview) "PREVIEW: would have " else "", n, top, bottom,
-                  length(borings)))
+  message(sprintf("[lif_editor_bulk] %s%d reading(s) (%g-%g ft) across %d boring(s)",
+                  if (preview) "PREVIEW: would change " else "changed ", n, top,
+                  bottom, length(borings)))
   if (isTRUE(verbose) && length(counts))
     for (b in names(counts)) message(sprintf("  %-20s %d rows", b, counts[[b]]))
   if (preview) return(data)
-  data$signal[mask] <- value
-  .record_edit(data, "lif_editor_bulk", NA, top, bottom, value, n)
+  r <- .apply_mask(data, mask, value)
+  .record_edit(r$data, "lif_editor_bulk", NA, top, bottom, value, r$n)
 }
 
 #' Zero signal at or above a given depth
@@ -204,15 +313,24 @@ lif_editor_bulk <- function(data, top = 0, bottom = 1000, value = 0,
 #' lif <- lif_zero_shallow(lif, depth = 2)
 #' @export
 lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
-  .check_edit_target(data, "lif_zero_shallow")
-  targets <- if (is.null(borings)) sort(unique(data$boring)) else borings
+  .check_edit_target(data, "lif_zero_shallow", value)
+  .check_scalar_number(depth, "depth", "lif_zero_shallow")
+  targets <- if (is.null(borings)) sort(unique(as.character(data$boring))) else borings
+  n_before <- nrow(attr(data, "edits") %||% data.frame())
   for (b in targets) {
     .check_borename(data, b)
-    data <- suppressMessages(lif_editor(data, b, top = 0, bottom = depth,
-                                        value = value))
+    # top = -Inf: readings logged above ground surface (negative depth) are
+    # "at or shallower than depth" too (#9).
+    # A boring with nothing left to zero is expected here, not a typo'd
+    # window: the summary message below reports the total (daktools #789).
+    data <- withCallingHandlers(
+      suppressMessages(lif_editor(data, b, top = -Inf, bottom = depth,
+                                  value = value)),
+      lifr_edit_noop = function(w) invokeRestart("muffleWarning"))
   }
-  n <- sum(data$boring %in% targets & !is.na(data$depth) & data$depth <= depth)
-  message(sprintf("[lif_zero_shallow] zeroed %d row(s) above %g ft across %d boring(s)",
+  h <- attr(data, "edits")
+  n <- sum(h$n_rows_changed[seq_len(nrow(h)) > n_before])
+  message(sprintf("[lif_zero_shallow] changed %d reading(s) at or above %g ft across %d boring(s)",
                   n, depth, length(targets)))
   data
 }
@@ -222,27 +340,53 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
 #' Sets `signal` to `value` wherever it is strictly less than `threshold`,
 #' across all borings or the named subset. `NA` readings are left alone.
 #'
+#' Called without `borings`, the edit is recorded as a single audit row with
+#' `boring = NA`, which the report reads as "every boring at the site".
+#' Called with `borings`, it writes one row per named boring, each with its
+#' own `n_rows_changed`, as [lif_zero_shallow()] does: a single `boring = NA`
+#' row claimed the edit had reached borings it never touched, and put the
+#' report's whole-log caption under every log (daktools #791). A name repeated in
+#' `borings` is one target, not two.
+#'
 #' @inheritParams lif_zero_shallow
 #' @param threshold Readings below this %RE value are zeroed.
-#' @return The edited frame with one audit row recording the threshold.
+#' @return The edited frame: one audit row with `boring = NA` when `borings`
+#'   is `NULL`, otherwise one row per named boring.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
 #' lif <- lif_zero_below_threshold(lif, threshold = 1)
 #' @export
 lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0) {
-  .check_edit_target(data, "lif_zero_below_threshold")
-  targets <- if (is.null(borings)) sort(unique(data$boring)) else borings
+  .check_edit_target(data, "lif_zero_below_threshold", value)
+  .check_scalar_number(threshold, "threshold", "lif_zero_below_threshold")
+  targets <- if (is.null(borings)) sort(unique(as.character(data$boring)))
+             else unique(borings)
   for (b in targets) .check_borename(data, b)
-  mask <- data$boring %in% targets & !is.na(data$signal) & data$signal < threshold
-  n <- sum(mask)
-  data$signal[mask] <- value
-  data <- .record_edit(data, "lif_zero_below_threshold", NA, NA, NA, value, n,
-                       notes = sprintf("threshold=%g; borings=%s", threshold,
-                                       if (is.null(borings)) "all"
-                                       else paste(borings, collapse = "|")))
-  message(sprintf("[lif_zero_below_threshold] zeroed %d row(s) below %g across %d boring(s)",
-                  n, threshold, length(targets)))
+  # NA signals (which lif_editor(value = NA) legitimately creates) must not
+  # poison the mask: NA < threshold is NA. NA rows are left alone.
+  below <- !is.na(data$signal) & data$signal < threshold
+  notes <- sprintf("threshold=%g", threshold)
+  if (is.null(borings)) {
+    r <- .apply_mask(data, below, value)
+    data <- .record_edit(r$data, "lif_zero_below_threshold", NA, NA, NA, value,
+                         r$n, notes = notes)
+    n_total <- r$n
+  } else {
+    # One row per targeted boring, so the audit record names exactly the
+    # borings that were edited (daktools #791). Borings are disjoint row sets, so
+    # masking per boring against the current signal is the same as masking
+    # the original signal once.
+    n_total <- 0L
+    for (b in targets) {
+      r <- .apply_mask(data, below & data$boring == b, value)
+      data <- .record_edit(r$data, "lif_zero_below_threshold", b, NA, NA, value,
+                           r$n, notes = notes)
+      n_total <- n_total + r$n
+    }
+  }
+  message(sprintf("[lif_zero_below_threshold] changed %d reading(s) below %g across %d boring(s)",
+                  n_total, threshold, length(targets)))
   data
 }
 
@@ -254,6 +398,14 @@ lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0)
 #' window list in `notes` (`"kept 12-28 ft; zeroed rows outside these
 #' windows"`); the report's log plots read that note to shade the zeroed
 #' depths.
+#'
+#' A keep window (or set of `keep` windows) that contains none of
+#' `borename`'s readings would zero the whole boring, so it is an error of
+#' class `"lifr_keep_window_miss"` naming the boring, the window, and the
+#' boring's depth range, under `preview = TRUE` too. This is the ft/metres
+#' and decimal-slip guard: `lif_keep(lif, "B2", top = 300, bottom = 350)` on
+#' a 20 ft boring used to blank it silently. To blank a boring on purpose,
+#' call [lif_editor()] with no `top`/`bottom`.
 #'
 #' @inheritParams lif_editor
 #' @param top,bottom Depth window (ft) to keep. Defaults `-Inf` / `Inf`; at
@@ -268,7 +420,7 @@ lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0)
 #' @export
 lif_keep <- function(data, borename, top = -Inf, bottom = Inf, value = 0,
                      keep = NULL, preview = FALSE) {
-  .check_edit_target(data, "lif_keep")
+  .check_edit_target(data, "lif_keep", value)
   if (missing(top) && missing(bottom) && is.null(keep))
     stop(sprintf("lif_keep('%s') requires at least one of top=, bottom=, or keep=.",
                  borename), call. = FALSE)
@@ -281,26 +433,28 @@ lif_keep <- function(data, borename, top = -Inf, bottom = Inf, value = 0,
     .check_depth_range(top, bottom); list(c(top, bottom))
   }
   in_boring <- data$boring == borename
-  keep_mask <- rep(FALSE, nrow(data))
-  for (iv in intervals)
-    keep_mask <- keep_mask | (!is.na(data$depth) & data$depth >= iv[1L] &
-                              data$depth <= iv[2L])
-  to_zero <- in_boring & !keep_mask
-  n <- sum(to_zero)
+  keep_mask <- .keep_window_mask(data$depth, intervals)
+  # A window holding none of this boring's readings would zero the whole
+  # boring: an error, under preview = TRUE too (daktools #789).
+  .check_keep_window_hits(data, borename, keep_mask, intervals, "lif_keep")
+  # NA-depth readings cannot be placed inside or outside a window; leave them
+  # alone, as lif_editor() does (#9).
+  to_zero <- in_boring & !keep_mask & !is.na(data$depth)
   ivstr <- .fmt_intervals(intervals)
   if (preview) {
-    message(sprintf("[lif_keep] PREVIEW %s: would zero %d row(s) outside %s",
-                    borename, n, ivstr))
+    message(sprintf("[lif_keep] PREVIEW %s: would change %d reading(s) outside %s",
+                    borename, sum(to_zero & !.same_value(data$signal, value)), ivstr))
     return(data)
   }
-  data$signal[to_zero] <- value
+  r <- .apply_mask(data, to_zero, value)
+  data <- r$data; n <- r$n
   span <- range(unlist(intervals))
   notes <- paste0("kept ", paste(vapply(intervals, function(iv)
     sprintf("%g-%g ft", iv[1L], iv[2L]), character(1)), collapse = "; "),
     "; zeroed rows outside these windows")
   data <- .record_edit(data, "lif_keep", borename, span[1L], span[2L], value,
                        n, notes = notes)
-  message(sprintf("[lif_keep] %s: zeroed %d row(s) outside %s", borename, n, ivstr))
+  message(sprintf("[lif_keep] %s: changed %d reading(s) outside %s", borename, n, ivstr))
   data
 }
 
@@ -331,7 +485,8 @@ lif_keep <- function(data, borename, top = -Inf, bottom = Inf, value = 0,
 #' * `action` (optional): `"delete"` (default), `"clean"` (alias), or
 #'   `"keep"`.
 #' * `top`, `bottom` (optional): depth bounds. `NA` means the function's own
-#'   default (whole boring for delete; open-ended for keep).
+#'   default (whole boring for delete; open-ended for keep, which needs at
+#'   least one bound).
 #'
 #' @param data A [lif_data] frame.
 #' @param edits A data frame or the path to a CSV with the columns above.
@@ -373,11 +528,12 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
               else rep(NA_real_, nrow(edits))
   bottom_v <- if ("bottom" %in% names(edits)) suppressWarnings(as.numeric(edits$bottom))
               else rep(NA_real_, nrow(edits))
-  valid_b <- unique(data$boring)
-  if (any(trimws(as.character(valid_b)) == .BULK_BORING))
+  valid_b <- unique(as.character(data$boring))
+  if (any(trimws(valid_b) == .BULK_BORING))
     stop("lif_apply_edits: a boring is named '*', which is the all-borings ",
          "sentinel. Rename it before applying a plan.", call. = FALSE)
   dmax <- suppressWarnings(max(data$depth, na.rm = TRUE))
+  if (!is.finite(dmax)) dmax <- Inf
 
   # Validate every row before touching anything.
   problems <- character(0)
@@ -389,11 +545,27 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
       row <- c(row, sprintf("unknown action '%s'", action[i]))
     if (is_bulk && action[i] == "keep")
       row <- c(row, "action 'keep' is not supported with '*'; list the borings")
+    if (action[i] == "keep" && is.na(top_v[i]) && is.na(bottom_v[i]))
+      row <- c(row, "a 'keep' row needs top and/or bottom (otherwise nothing would be zeroed)")
     if (!is.na(top_v[i]) && !is.na(bottom_v[i]) && top_v[i] > bottom_v[i])
       row <- c(row, sprintf("top (%g) > bottom (%g)", top_v[i], bottom_v[i]))
+    # A keep window holding none of its boring's readings would zero the
+    # whole boring -- the ft/m or decimal slip (daktools #789). Checked here
+    # so a bad
+    # plan fails before any row is applied, and so one error lists them all.
+    # Rows already faulted above (unknown boring, inverted or empty window,
+    # the '*' sentinel) are left to the checks that own them.
+    if (action[i] == "keep" && !is_bulk && b %in% valid_b && !length(row)) {
+      iv <- list(c(if (is.na(top_v[i])) -Inf else top_v[i],
+                   if (is.na(bottom_v[i])) Inf else bottom_v[i]))
+      if (!any(.keep_window_mask(data$depth, iv) & data$boring == b, na.rm = TRUE))
+        row <- c(row, sprintf(
+          "the keep window %s contains none of boring '%s's readings (%s), so every reading in it would be zeroed",
+          .fmt_intervals(iv), b, .boring_depth_span(data, b)))
+    }
     if (is_bulk && action[i] == "delete") {
       et <- if (is.na(top_v[i])) 0 else top_v[i]
-      eb <- if (is.na(bottom_v[i])) 1000 else bottom_v[i]
+      eb <- if (is.na(bottom_v[i])) Inf else bottom_v[i]
       if (et <= 0 && eb >= dmax)
         row <- c(row, "a '*' delete row spanning every reading would wipe the dataset; narrow it")
     }
@@ -411,13 +583,14 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
       d <- data$depth
       if (action[i] == "delete") {
         t0 <- if (is.na(top_v[i])) 0 else top_v[i]
-        b0 <- if (is.na(bottom_v[i])) 1000 else bottom_v[i]
-        sum(bmask & !is.na(d) & d >= t0 & d <= b0)
+        b0 <- if (is.na(bottom_v[i])) Inf else bottom_v[i]
+        m <- bmask & !is.na(d) & d >= t0 & d <= b0
       } else {
         t0 <- if (is.na(top_v[i])) -Inf else top_v[i]
         b0 <- if (is.na(bottom_v[i])) Inf else bottom_v[i]
-        sum(bmask & !(!is.na(d) & d >= t0 & d <= b0))
+        m <- bmask & !is.na(d) & !(d >= t0 & d <= b0)
       }
+      sum(m & !.same_value(data$signal, 0))
     }, integer(1))
     summ <- data.frame(boring = edits$boring, action = action, top = top_v,
                        bottom = bottom_v, n_rows_affected = n_aff,
@@ -440,7 +613,9 @@ lif_apply_edits <- function(data, edits, validate = FALSE) {
     args <- list(data = data, borename = b)
     if (!is.na(top_v[i]))    args$top    <- top_v[i]
     if (!is.na(bottom_v[i])) args$bottom <- bottom_v[i]
-    data <- suppressMessages(suppressWarnings(do.call(fn, args)))
+    # Incidental warnings (the "no top/bottom" notice a fully-NA row opts
+    # into) stay muffled; a no-op delete reaches the caller (daktools #789).
+    data <- .muffle_but_noop(suppressMessages(do.call(fn, args)))
   }
   message(sprintf("[lif_apply_edits] Applied %d edit(s).", nrow(edits)))
   data

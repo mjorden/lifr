@@ -24,7 +24,7 @@ test_that("print methods summarise without error", {
   expect_match(out2[1], "^<edited_data> 1 edit")
   stripped <- ed; attr(stripped, "edits") <- NULL
   out3 <- capture.output(print(stripped, n = 2))
-  expect_match(out3[1], "provenance was dropped")
+  expect_match(out3[1], "no longer attached")
 })
 
 test_that("summary.lif_data dispatches to summarize_lif", {

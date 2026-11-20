@@ -53,6 +53,14 @@ Standard site-level, per-boring, per-threshold, and per-depth-zone
 statistics for \code{signal} (or another numeric channel), returned as a list
 of data frames so reports and dashboards render the same numbers.
 }
+\section{Depths outside the bins}{
+
+Readings whose depth falls below the first break (negative depths, when
+\code{depth_bins} starts at 0) or is \code{NA} are not in any zone; \verb{$by_depth_zone}
+carries an \code{unbinned} count in its attribute of the same name so the zone
+rows can be reconciled with \code{n_samples}.
+}
+
 \section{Geometric mean}{
 
 LIF response is right-skewed, so the geometric mean is reported beside

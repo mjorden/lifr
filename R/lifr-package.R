@@ -42,11 +42,3 @@
 #' @importFrom stats median quantile sd setNames
 #' @importFrom utils head tail read.csv write.csv packageVersion
 "_PACKAGE"
-
-# Columns referenced inside ggplot2 aesthetics as bare symbols. New plotting
-# code should prefer the `.data$` pronoun; this list exists for the few
-# places where a bare name reads more clearly.
-utils::globalVariables(c(
-  "depth", "signal", "boring", "easting", "northing", "color",
-  "depth_step", "peak_color", "marker_size", "label"
-))

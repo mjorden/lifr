@@ -7,7 +7,8 @@
 theme_lifr(base_size = 10)
 }
 \arguments{
-\item{base_size}{Base font size. Default 10.}
+\item{base_size}{Base font size. Default 10; every text element scales
+relative to it.}
 }
 \value{
 A ggplot2 theme object.
@@ -15,10 +16,11 @@ A ggplot2 theme object.
 \description{
 A quiet, data-first theme shared by every lifr plot: white panel, no tick
 marks, light warm-grey gridlines, and a four-tier type hierarchy (title,
-subtitle, axis, caption). Add it to your own ggplots to match the
-package's figures.
+subtitle, axis, caption) that scales with \code{base_size}. Add it to your own
+ggplots to match the package's figures.
 }
 \examples{
 library(ggplot2)
 ggplot(mtcars, aes(wt, mpg)) + geom_point() + theme_lifr()
+ggplot(mtcars, aes(wt, mpg)) + geom_point() + theme_lifr(base_size = 14)
 }

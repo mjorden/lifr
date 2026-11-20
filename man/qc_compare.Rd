@@ -4,7 +4,7 @@
 \alias{qc_compare}
 \title{Side-by-side comparison of input and edited profiles}
 \usage{
-qc_compare(raw, edited, channel = "signal", output_dir = NULL)
+qc_compare(raw, edited, channel = "signal", output_dir = NULL, ymin = 0)
 }
 \arguments{
 \item{raw}{The frame before editing.}
@@ -16,6 +16,14 @@ qc_compare(raw, edited, channel = "signal", output_dir = NULL)
 
 \item{output_dir}{Optional directory; when supplied one PNG per changed
 boring is written there.}
+
+\item{ymin}{Value-axis floor, default \code{0}, or \code{NULL} to floor at
+\code{min(0, 1.05 * min(value))} and mark 0 with a thin line. Readings below
+the floor are left out of view, not dropped; when any are, a message of
+class \code{"lifr_below_floor"} and a caption say how many. This is a QC view
+of what an edit changed, so the floor applies to every channel,
+\code{signal} included -- unlike the LIF log panels, which keep a 0 floor
+(daktools #661).}
 }
 \value{
 A named list of ggplots (one per changed boring), invisibly.
@@ -24,6 +32,14 @@ A named list of ggplots (one per changed boring), invisibly.
 For every boring whose \code{signal} differs between \code{raw} and \code{edited},
 builds a two-panel plot (input | edited) with changed depths marked in
 red. Unchanged borings are skipped and counted in a message.
+}
+\details{
+A reading set to \code{NA} (what \code{lif_editor(value = NA)} writes), an \code{NA}
+filled in, and a depth present in only one of the two frames all count as
+edits; \code{NA} on both sides counts as unchanged. A depth with no reading
+left in \code{edited} has no value to put a dot on, so it is marked with a red
+cross just above the panel floor, where the fill and line break
+(daktools #795).
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")

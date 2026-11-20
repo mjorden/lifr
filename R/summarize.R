@@ -39,6 +39,11 @@
 #'   `"input"` (first-appearance order).
 #' @param plot Logical. Also print a lollipop chart of peak signal per boring
 #'   (see [chart_peak_by_boring()]).
+#' @section Depths outside the bins:
+#' Readings whose depth falls below the first break (negative depths, when
+#' `depth_bins` starts at 0) or is `NA` are not in any zone; `$by_depth_zone`
+#' carries an `unbinned` count in its attribute of the same name so the zone
+#' rows can be reconciled with `n_samples`.
 #' @return A list: `overview` (one row: `n_borings`, `n_samples`, `min`,
 #'   `mean`, `geom_mean`, `geom_mean_n_excluded`, `median`, `max`,
 #'   `pct_detect`), `by_boring` (`boring`, `n`, `peak`, `peak_depth`,
@@ -70,7 +75,7 @@ summarize_lif <- function(data, channel = "signal", thresholds = NULL,
   .check_required_cols(data, c("boring", "depth", channel), source = "data")
   if (is.null(thresholds)) thresholds <- .default_thresholds_for(channel)
 
-  x <- data[[channel]]; depth <- data$depth; bore <- data$boring
+  x <- data[[channel]]; depth <- data$depth; bore <- as.character(data$boring)
   xv <- x[!is.na(x)]; n_samp <- length(xv)
   borings <- unique(bore); n_bores <- length(borings)
 
@@ -83,7 +88,11 @@ summarize_lif <- function(data, channel = "signal", thresholds = NULL,
     max = if (n_samp) max(xv) else NA_real_,
     pct_detect = if (n_samp) mean(xv > detection_limit) * 100 else NA_real_)
 
-  by_boring <- do.call(rbind, lapply(borings, function(b) {
+  by_boring <- if (!n_bores) data.frame(
+    boring = character(), n = integer(), peak = numeric(), peak_depth = numeric(),
+    mean = numeric(), geom_mean = numeric(), geom_mean_n_excluded = integer(),
+    p50 = numeric(), p95 = numeric(), stringsAsFactors = FALSE)
+  else do.call(rbind, lapply(borings, function(b) {
     sel <- bore == b & !is.na(x)
     xb <- x[sel]; nb <- length(xb)
     data.frame(
@@ -129,6 +138,7 @@ summarize_lif <- function(data, channel = "signal", thresholds = NULL,
                stringsAsFactors = FALSE)
   }))
   rownames(by_depth_zone) <- NULL
+  attr(by_depth_zone, "unbinned") <- sum(is.na(zones) & !is.na(x))
 
   q <- if (n_samp) stats::quantile(xv, probs = quantiles, names = FALSE)
        else rep(NA_real_, length(quantiles))

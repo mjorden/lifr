@@ -33,10 +33,11 @@ new_lif_data(df)
 }
 \description{
 Tags a data frame with the \code{lif_data} class after checking that it carries
-\code{boring}, \code{depth}, and \code{signal}. The object still inherits from
-\code{data.frame}, so every base-R and tidyverse operation keeps working; the
-class only adds \code{print()} and \code{summary()} methods. Importers return
-classed objects automatically.
+\code{boring}, \code{depth}, and \code{signal}. A factor \code{boring} is converted to
+character, so boring names never reach an indexing path as integer codes.
+The object still inherits from \code{data.frame}, so every base-R and tidyverse
+operation keeps working; the class only adds \code{print()} and \code{summary()}
+methods. Importers return classed objects automatically.
 }
 \examples{
 df <- data.frame(boring = "B1", depth = 1:3, signal = c(0, 5, 2))

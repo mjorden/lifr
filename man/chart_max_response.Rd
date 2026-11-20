@@ -15,11 +15,22 @@ chart_max_response(data, thresholds = c(1, 5))
 A ggplot, or \code{NULL} when there is no signal data.
 }
 \description{
-One bar per boring at its peak \%RE, filled with the emission colour
-recorded at that depth (the product signature) when a \code{color} channel is
-present. Borings whose peak is below the lowest threshold are drawn grey:
-at that level the peak is background, so a product colour would imply a
-signature that is not there.
+One bar per boring at its peak \%RE. Each bar has one of three kinds, and
+the caption names only the ones actually drawn:
+}
+\details{
+\itemize{
+\item \strong{filled with the emission colour} recorded at the peak depth -- the
+product signature -- when the frame carries a valid colour for that
+boring;
+\item \strong{hollow} (no fill, ink outline) when the peak is above the screening
+floor but the delivery carried no usable colour. A coloured fallback
+would read as a real signature, so the bar carries none, following the
+non-detect marker convention;
+\item \strong{grey} when the peak is below the lowest threshold: at that level the
+peak is background, so a product colour would imply a signature that is
+not there.
+}
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")

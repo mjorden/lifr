@@ -16,7 +16,7 @@ compat_rename_legacy(df)
 Maps \code{Depth}, \code{Signal}, \code{EC}, \code{HP}, \code{Color}, \code{Boring}, \code{Easting},
 \code{Northing}, and \code{MSL} to their lowercase equivalents. Only exact matches
 are renamed; a rename that would collide with an existing lowercase column
-is skipped with a one-per-session warning.
+is skipped with a warning.
 }
 \examples{
 df <- data.frame(boring = "B1", Depth = 1:3, Signal = c(0, 5, 2))

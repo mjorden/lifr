@@ -83,7 +83,10 @@ fetch_basemap <- function(data, crs, pad_frac = 0.30, px = 1024L, timeout = 30) 
     if (file.info(tmp)$size < 1000L)
       stop("tile response too small (", file.info(tmp)$size, " bytes)")
     img <- png::readPNG(tmp)
-    if (stats::sd(img) < 0.02)
+    # Colour planes only: a flat tile with an alpha channel would otherwise
+    # pass the featureless check on the alpha plane's variance (#20).
+    rgb <- if (length(dim(img)) == 3L) img[, , seq_len(min(3L, dim(img)[3])), drop = FALSE] else img
+    if (stats::sd(rgb) < 0.02)
       stop("tile is featureless -- the site is likely outside USGS imagery coverage")
     structure(list(image = img, xmin = bb$xmin, xmax = bb$xmax, ymin = bb$ymin,
                    ymax = bb$ymax, attribution = .basemap_attribution),

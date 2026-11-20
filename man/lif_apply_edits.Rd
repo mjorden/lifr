@@ -32,7 +32,8 @@ rows only; recorded as one bulk edit).
 \item \code{action} (optional): \code{"delete"} (default), \code{"clean"} (alias), or
 \code{"keep"}.
 \item \code{top}, \code{bottom} (optional): depth bounds. \code{NA} means the function's own
-default (whole boring for delete; open-ended for keep).
+default (whole boring for delete; open-ended for keep, which needs at
+least one bound).
 }
 }
 

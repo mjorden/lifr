@@ -24,7 +24,8 @@ depth_slice_map(
 
 \item{channel}{Column to aggregate. Default \code{"signal"}.}
 
-\item{agg_fn}{Aggregation function applied per boring. Default \code{max}.}
+\item{agg_fn}{Aggregation function applied per boring to the non-\code{NA}
+in-band readings (it receives a plain numeric vector). Default \code{max}.}
 
 \item{point_size}{Marker size. Default 3.}
 
