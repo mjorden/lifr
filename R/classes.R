@@ -124,12 +124,34 @@ summary.lif_data <- function(object, ...) summarize_lif(object)
 #' output automatically.
 #'
 #' @section What keeps the history:
-#' The `edits` attribute is carried through `[` (row and column subsetting),
-#' `rbind()` (histories are concatenated in argument order), and the dplyr
-#' verbs (`filter()`, `mutate()`, `select()`, `arrange()`, joins) via
-#' `dplyr_reconstruct()`. It is still lost by `merge()`,
-#' `tibble::as_tibble()`, and by rebuilding the frame from its columns; use
-#' [lif_get_edits()] / [lif_set_edits()] around those.
+#' These rules are verified by test (`test-port-tier2.R`) rather than
+#' asserted, because most of them depend on S3 dispatch finding a `lifr`
+#' method, and that depends on *which* argument carries the class.
+#'
+#' Kept:
+#' * `[` -- rows, columns, or both.
+#' * The dplyr verbs -- `filter()`, `mutate()`, `select()`, `arrange()`,
+#'   and the joins -- through `dplyr_reconstruct()`.
+#' * `rbind()`, **when its first argument** is an `edited_data` or
+#'   `lif_data` frame: then every argument's history is concatenated in
+#'   argument order. This is the one operation that merges two histories.
+#'
+#' Lost:
+#' * `rbind()` when the first argument is a plain data frame or tibble.
+#'   `rbind.data.frame` is dispatched instead, and the result silently
+#'   carries no class and no history at all -- not even the classed
+#'   argument's. Put the edited frame first.
+#' * `dplyr::bind_rows()` keeps at most the **first** argument's history and
+#'   never concatenates two. Use `rbind()` to combine edited frames.
+#' * `merge()`, and rebuilding a frame from its columns.
+#' * `tibble::as_tibble()` and `as.data.frame()` drop the **class**, so the
+#'   provenance banner stops printing. The attribute itself usually
+#'   survives, and `edit_history()` will still read it, but nothing
+#'   maintains it from then on: a declassed frame placed first in `rbind()`
+#'   keeps only its own history and silently drops the rest.
+#'
+#' Use [lif_get_edits()] / [lif_set_edits()] around the operations that lose
+#' it.
 #'
 #' @param df A data frame, typically fresh from an editor.
 #' @return `df` with the `edited_data` class prepended when an `edits`
@@ -180,9 +202,15 @@ print.edited_data <- function(x, ...) {
 }
 
 # rbind concatenates every argument's history; the default method kept only
-# the first frame's, silently dropping the rest (#6). Dispatch reaches this
-# method whenever the first argument carrying a method is lif_data or
-# edited_data.
+# the first frame's, silently dropping the rest (#6).
+#
+# Dispatch reaches this method only when the FIRST argument is lif_data or
+# edited_data. rbind()'s C-level dispatch takes the first argument whose
+# class has a method, and `data.frame` has one (rbind.data.frame), so
+# rbind(plain_df, edited) resolves to rbind.data.frame and returns an
+# unclassed frame with no history at all -- not even `edited`'s. Nothing
+# warns. ?new_edited_data states the rule and test-port-tier2.R pins it
+# (daktools #647).
 .rbind_with_edits <- function(..., deparse.level = 1) {
   parts <- list(...)
   hist  <- lapply(parts, attr, "edits")

@@ -65,8 +65,9 @@ timestamp, function, boring, depth window, replacement value, and
 so re-applying an edit or zeroing readings already at zero records 0.
 The history prints with the frame, is returned by \code{\link[=edit_history]{edit_history()}}, can
 be saved with \code{\link[=edit_history_save]{edit_history_save()}}, and is rendered in full on the site
-report's Processing history tab. It survives \code{[}, \code{rbind()}, and the
-dplyr verbs; see \code{\link[=new_edited_data]{new_edited_data()}} for the operations that drop it and
+report's Processing history tab. It survives \code{[}, the dplyr verbs, and
+\code{rbind()} when the edited frame is its first argument; see
+\code{\link[=new_edited_data]{new_edited_data()}} for the full rules, the operations that drop it, and
 \code{\link[=lif_get_edits]{lif_get_edits()}} to carry it across those.
 }
 

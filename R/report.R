@@ -1,6 +1,43 @@
 # Site pipeline (import -> edits -> corrections -> summary -> charts) and the
 # report renderer (self-contained HTML, Markdown, PDF, per-boring logs PDF).
 
+# Step-log detail for a correction's argument list: one "name=value" per
+# argument, "; "-joined. The old paste(names(p), unlist(p), sep = "=")
+# recycled the names over the FLATTENED values, so any argument longer than
+# one value shifted every later one: a per-boring water table
+# list(water_table = c("LIF-01" = 12, "LIF-02" = 14.5), gradient = 0.433)
+# logged "water_table=12; gradient=14.5; water_table=0.433", putting a
+# 14.5 ft/ft gradient on record and contradicting the edit history in the
+# same report (daktools #792). Vectors and lists render as c(...)/list(...)
+# with "|" between elements and "name=" on named ones.
+.fmt_step_arg <- function(x) {
+  if (is.null(x)) return("NULL")
+  if (is.list(x)) {
+    open <- "list("
+    vals <- vapply(x, .fmt_step_arg, character(1), USE.NAMES = FALSE)
+  } else if (is.atomic(x)) {
+    vals <- if (is.factor(x)) as.character(x)
+            else vapply(x, as.character, character(1), USE.NAMES = FALSE)
+    vals[is.na(vals)] <- "NA"
+    if (length(x) == 1L && is.null(names(x))) return(vals)
+    open <- "c("
+  } else {
+    return(paste0("<", class(x)[1L], ">"))
+  }
+  nms <- names(x)
+  if (!is.null(nms))
+    vals <- ifelse(is.na(nms) | !nzchar(nms), vals, paste0(nms, "=", vals))
+  paste0(open, paste(vals, collapse = "|"), ")")
+}
+
+.fmt_step_args <- function(p) {
+  if (length(p) == 0L) return("")
+  nms <- names(p) %||% rep("", length(p))
+  nms[is.na(nms)] <- ""
+  vals <- vapply(p, .fmt_step_arg, character(1), USE.NAMES = FALSE)
+  paste(ifelse(nzchar(nms), paste0(nms, "=", vals), vals), collapse = "; ")
+}
+
 #' Run the import -> edit -> correct -> summarise -> report pipeline for a site
 #'
 #' One call that imports a directory of LIF logs, optionally applies a batch
@@ -146,8 +183,7 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
         stop("process_site: `corrections$hp` must be TRUE or a named list of ",
              "hp_correction() arguments.", call. = FALSE)
       data <- hush(do.call(hp_correction, c(list(data), p)))
-      add("correct", "hp_correction()",
-          paste(names(p), unlist(p), sep = "=", collapse = "; "), data)
+      add("correct", "hp_correction()", .fmt_step_args(p), data)
     }
   }
 
@@ -364,8 +400,14 @@ print.lif_site <- function(x, ...) {
     plots$imagery <- boring_map(d, basemap = bm, size_by_signal = FALSE,
                                 title = "Boring locations - site imagery",
                                 site_name = x$site_name)
+  # The response map and chart_max_response() sit in the same report, so they
+  # must agree about every boring: the bars grey a peak below the lowest
+  # screening threshold, and without a floor the map gave that same boring a
+  # full-strength emission colour (daktools #801).
+  thr <- x$meta$response_thresholds %||% c(1, 5)
   plots$response <- boring_map(d, basemap = bm, use_instrument_color = TRUE,
-                               site_name = x$site_name)
+                               site_name = x$site_name,
+                               fill_floor = if (length(thr)) min(thr))
   list(plots = plots, fetch_failed = fetch_failed, fetch_note = fetch_note)
 }
 

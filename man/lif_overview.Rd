@@ -9,7 +9,8 @@ lif_overview(
   borename,
   channels = c("ec", "hp"),
   depth_max = NULL,
-  ymax = NULL
+  ymax = NULL,
+  ymin = 0
 )
 }
 \arguments{
@@ -26,6 +27,16 @@ reading.}
 
 \item{ymax}{Signal axis cap. \code{NULL} (default) auto-scales to 5\% above the
 boring's maximum.}
+
+\item{ymin}{Value-axis floor for the \code{channels} panels (the LIF panel
+keeps its own 0 floor: negative \%RE is not a quantity). Default \code{0},
+so no existing figure changes shape. Readings below the floor are left
+out of view by the coordinate limits, not dropped, so nothing warns on
+its own; when any are, a message of class \code{"lifr_below_floor"} and a
+panel caption say how many. \code{NULL} floors at
+\code{min(0, 1.05 * min(value))} and marks 0 with a thin line, which is how
+to see the negative \code{hp} that \code{\link[=hp_correction]{hp_correction()}} produces by default
+through the unsaturated zone.}
 }
 \value{
 A patchwork object (prints like a ggplot).

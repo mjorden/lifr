@@ -29,7 +29,8 @@ boring_map(
   output_file = NULL,
   width = 8,
   height = 7,
-  dpi = 200
+  dpi = 200,
+  fill_floor = NULL
 )
 }
 \arguments{
@@ -88,6 +89,16 @@ proportions. Default 100.}
 \item{output_file}{Optional PNG path.}
 
 \item{width, height, dpi}{Passed to \code{ggplot2::ggsave()}.}
+
+\item{fill_floor}{Screening floor (\%RE), or \code{NULL} (default) for none.
+A detect whose peak is \strong{strictly below} this value keeps its size and
+its detect status -- the reading is real -- but is filled the non-detect
+grey instead of the emission colour or neutral blue, and a caption line
+names the floor. This matches \code{\link[=chart_max_response]{chart_max_response()}}, which greys a bar
+below its lowest screening threshold, so the two figures in one report
+agree about every boring (daktools #801); \code{<} rather than \code{<=} in both,
+so a peak exactly at the floor is coloured in both. \code{\link[=process_site]{process_site()}}
+passes the report's lowest \code{response_thresholds} value.}
 }
 \value{
 A ggplot object.
@@ -109,6 +120,9 @@ and a sixteenth of it; a marker at 1 \% of the peak really is 1 \% of the
 peak's area, so a ring of weak detects cannot read as a broad plume.
 \item A \strong{hollow circle} is a non-detect: no reading above \code{nd_threshold}
 in the depth window.
+\item With \code{fill_floor} set, a \strong{grey filled} marker is a real detect whose
+peak is below the screening floor: sized like any other detect, but
+carrying no colour claim, as the bar chart's grey bars do.
 \item Marker \strong{fill} is a neutral blue unless \code{use_instrument_color = TRUE},
 which uses the emission colour recorded at the depth of peak signal.
 That colour is the product signature analysts read in the field; the

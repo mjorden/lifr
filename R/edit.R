@@ -190,8 +190,9 @@
 #' so re-applying an edit or zeroing readings already at zero records 0.
 #' The history prints with the frame, is returned by [edit_history()], can
 #' be saved with [edit_history_save()], and is rendered in full on the site
-#' report's Processing history tab. It survives `[`, `rbind()`, and the
-#' dplyr verbs; see [new_edited_data()] for the operations that drop it and
+#' report's Processing history tab. It survives `[`, the dplyr verbs, and
+#' `rbind()` when the edited frame is its first argument; see
+#' [new_edited_data()] for the full rules, the operations that drop it, and
 #' [lif_get_edits()] to carry it across those.
 #' @section Choosing an editor:
 #' * A known artifact inside an otherwise good log: `lif_editor()` with
@@ -339,9 +340,18 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
 #' Sets `signal` to `value` wherever it is strictly less than `threshold`,
 #' across all borings or the named subset. `NA` readings are left alone.
 #'
+#' Called without `borings`, the edit is recorded as a single audit row with
+#' `boring = NA`, which the report reads as "every boring at the site".
+#' Called with `borings`, it writes one row per named boring, each with its
+#' own `n_rows_changed`, as [lif_zero_shallow()] does: a single `boring = NA`
+#' row claimed the edit had reached borings it never touched, and put the
+#' report's whole-log caption under every log (daktools #791). A name repeated in
+#' `borings` is one target, not two.
+#'
 #' @inheritParams lif_zero_shallow
 #' @param threshold Readings below this %RE value are zeroed.
-#' @return The edited frame with one audit row recording the threshold.
+#' @return The edited frame: one audit row with `boring = NA` when `borings`
+#'   is `NULL`, otherwise one row per named boring.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
@@ -350,16 +360,33 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
 lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0) {
   .check_edit_target(data, "lif_zero_below_threshold", value)
   .check_scalar_number(threshold, "threshold", "lif_zero_below_threshold")
-  targets <- if (is.null(borings)) sort(unique(as.character(data$boring))) else borings
+  targets <- if (is.null(borings)) sort(unique(as.character(data$boring)))
+             else unique(borings)
   for (b in targets) .check_borename(data, b)
-  mask <- data$boring %in% targets & !is.na(data$signal) & data$signal < threshold
-  r <- .apply_mask(data, mask, value)
-  data <- .record_edit(r$data, "lif_zero_below_threshold", NA, NA, NA, value, r$n,
-                       notes = sprintf("threshold=%g; borings=%s", threshold,
-                                       if (is.null(borings)) "all"
-                                       else paste(borings, collapse = "|")))
+  # NA signals (which lif_editor(value = NA) legitimately creates) must not
+  # poison the mask: NA < threshold is NA. NA rows are left alone.
+  below <- !is.na(data$signal) & data$signal < threshold
+  notes <- sprintf("threshold=%g", threshold)
+  if (is.null(borings)) {
+    r <- .apply_mask(data, below, value)
+    data <- .record_edit(r$data, "lif_zero_below_threshold", NA, NA, NA, value,
+                         r$n, notes = notes)
+    n_total <- r$n
+  } else {
+    # One row per targeted boring, so the audit record names exactly the
+    # borings that were edited (daktools #791). Borings are disjoint row sets, so
+    # masking per boring against the current signal is the same as masking
+    # the original signal once.
+    n_total <- 0L
+    for (b in targets) {
+      r <- .apply_mask(data, below & data$boring == b, value)
+      data <- .record_edit(r$data, "lif_zero_below_threshold", b, NA, NA, value,
+                           r$n, notes = notes)
+      n_total <- n_total + r$n
+    }
+  }
   message(sprintf("[lif_zero_below_threshold] changed %d reading(s) below %g across %d boring(s)",
-                  r$n, threshold, length(targets)))
+                  n_total, threshold, length(targets)))
   data
 }
 
