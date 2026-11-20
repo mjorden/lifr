@@ -71,9 +71,13 @@ qc_compare(lif, edited)[["LIF-10"]]
 
 ### `boring_map()`
 
-Each boring is a marker sized by the square root of its peak signal, so the
-site's pattern reads even in greyscale, and labelled with its name and
-peak. Non-detects are hollow circles. A north arrow and scale bar sit in
+Each boring is a marker whose **area** is proportional to its peak signal,
+so the site's pattern reads even in greyscale, labelled with its name and
+peak. A size key gives the site maximum and a quarter and a sixteenth of
+it, so the small markers can be read too: a marker at 1 % of the peak
+really is 1 % of the peak's area, and a ring of weak detects around a hot
+spot cannot read as a broad plume. Non-detects are hollow circles, never
+larger than the smallest real detect. A north arrow and scale bar sit in
 whichever corners overlap the fewest borings.
 
 ```{r map, fig.height = 6.5}

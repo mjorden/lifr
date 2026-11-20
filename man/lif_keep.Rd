@@ -40,6 +40,15 @@ recorded for the whole call, spanning the outermost kept depths, with the
 window list in \code{notes} (\code{"kept 12-28 ft; zeroed rows outside these windows"}); the report's log plots read that note to shade the zeroed
 depths.
 }
+\details{
+A keep window (or set of \code{keep} windows) that contains none of
+\code{borename}'s readings would zero the whole boring, so it is an error of
+class \code{"lifr_keep_window_miss"} naming the boring, the window, and the
+boring's depth range, under \code{preview = TRUE} too. This is the ft/metres
+and decimal-slip guard: \code{lif_keep(lif, "B2", top = 300, bottom = 350)} on
+a 20 ft boring used to blank it silently. To blank a boring on purpose,
+call \code{\link[=lif_editor]{lif_editor()}} with no \code{top}/\code{bottom}.
+}
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)

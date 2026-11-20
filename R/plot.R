@@ -3,6 +3,27 @@
 # Depth profiles put depth on the x aesthetic, flip the coordinates, and
 # reverse the axis so depth reads top-to-bottom like a log.
 
+# geom_area() that breaks at NA, as geom_line() does (daktools #796).
+#
+# Since ggplot2 3.4 geom_area() defaults to stat_align, which drops NA rows
+# and then runs the polygon straight across the gap, so an interval deleted
+# with `value = NA` was painted as signal while the line over it broke.
+# Verified on ggplot2 4.0.3: the default draws one 10-vertex polygon
+# spanning the whole range; stat = "identity" draws two, leaving the gap
+# empty. `na.rm = TRUE` is still passed by the callers -- with
+# stat = "identity" it changes no geometry (GeomRibbon splits on the NA
+# either way) and only suppresses the "Removed n rows" warning, which would
+# otherwise fire once per panel in a report. With no NA the look is
+# unchanged.
+#
+# position = "identity" goes with it. geom_area() stacks by default, which
+# is a no-op for the single series every lifr area layer draws -- but once
+# the NA rows survive the stat, PositionStack's cumulative sum poisons them
+# and hands the geom x = NA, y = 0 instead of a gap, which drew a spurious
+# polygon pinned to the axis. Stacking has nothing to add here, so it goes.
+.geom_area_gaps <- function(...)
+  ggplot2::geom_area(..., stat = "identity", position = "identity")
+
 # One boring's LIF panel: filled signal trace, optional emission-colour
 # bars and a colour strip left of zero.
 .lif_panel <- function(d, borename, xmax, ymax, show_y_axis = TRUE, title = NULL) {
@@ -32,9 +53,9 @@
                             y = strip_lo, yend = strip_hi, linewidth = 3) +
       ggplot2::scale_colour_identity()
   } else {
-    p <- p + ggplot2::geom_area(data = d,
-                                ggplot2::aes(x = .data$depth, y = .data$signal),
-                                fill = .LIFR_AREA, alpha = 0.8)
+    p <- p + .geom_area_gaps(data = d,
+                             ggplot2::aes(x = .data$depth, y = .data$signal),
+                             fill = .LIFR_AREA, alpha = 0.8, na.rm = TRUE)
   }
   p <- p +
     ggplot2::geom_line(data = d, ggplot2::aes(x = .data$depth, y = .data$signal),
@@ -59,7 +80,7 @@
   if (is.null(ymax)) ymax <- .axis_cap(d[[channel]], 1)
   p <- ggplot2::ggplot(d, ggplot2::aes(x = .data$depth, y = .data[[channel]]))
   if (!is.null(fill))
-    p <- p + ggplot2::geom_area(fill = fill, alpha = 0.6, na.rm = TRUE)
+    p <- p + .geom_area_gaps(fill = fill, alpha = 0.6, na.rm = TRUE)
   p <- p +
     ggplot2::geom_line(colour = colour, linewidth = 0.6, na.rm = TRUE) +
     ggplot2::coord_flip(xlim = c(0, xmax), ylim = c(0, ymax)) +
@@ -107,6 +128,13 @@ lif_plot <- function(data, borename, xmax = NULL, ymax = NULL) {
 
 #' Plot LIF depth profiles for every boring
 #'
+#' Both layouts draw the per-reading emission-colour fill and the colour
+#' strip left of zero when the frame carries a `color` channel, so a
+#' small-multiples sheet shows which borings share a fluorescence signature.
+#' Colour is decided per boring: a boring with a colour at any depth gets the
+#' colour layers, the rest get the flat fill. All panels share one signal
+#' axis, so a colour-less panel on a mixed sheet shows an empty strip band.
+#'
 #' @inheritParams lif_plot
 #' @param ymax Signal axis cap shared by all borings. `NULL` uses 5% above
 #'   the site maximum so panels are comparable.
@@ -143,10 +171,56 @@ lif_plot_all <- function(data, xmax = NULL, ymax = NULL,
     message("lif_plot_all: no rows -- empty plot returned.")
     return(ggplot2::ggplot())
   }
-  p <- ggplot2::ggplot(d, ggplot2::aes(x = .data$depth, y = .data$signal)) +
-    ggplot2::geom_area(fill = .LIFR_AREA, alpha = 0.7, na.rm = TRUE) +
+  # The sheet draws the same per-reading emission-colour fill and colour
+  # strip as the single-boring panel (daktools #666). It used to ignore `color`
+  # entirely -- every panel was the flat area -- so the comparison a
+  # small-multiples sheet exists for, which borings share a fluorescence
+  # signature, was the one thing it could not show, while layout = "list"
+  # showed it. Colour is decided per boring, as the list layout decides it
+  # by calling .lif_panel() once per boring: borings with a colour at any
+  # depth get the colour layers, the rest get the flat area, on one sheet
+  # with one signal-axis floor (so a colour-less panel on a mixed sheet
+  # shows the empty strip band -- the price of a shared axis). A frame with
+  # no colour at all renders exactly as before.
+  has_color <- "color" %in% names(d) && any(!is.na(d$color))
+  y_min <- if (has_color) -ymax * 0.12 else 0
+  p <- ggplot2::ggplot(d, ggplot2::aes(x = .data$depth, y = .data$signal))
+  if (has_color) {
+    d$color <- .norm_hex(d$color)
+    # Each reading's rect spans its own boring's sample interval, so a
+    # boring logged at a different step is not drawn at its neighbour's.
+    d$depth_step <- NA_real_
+    for (ii in split(seq_len(nrow(d)), d$boring)) {
+      dep <- d$depth[ii]
+      d$depth_step[ii] <- if (length(dep) >= 2L)
+        c(diff(dep), utils::tail(diff(dep), 1)) else 1
+    }
+    coloured <- names(which(vapply(split(!is.na(d$color), d$boring), any, logical(1))))
+    d_col  <- d[d$boring %in% coloured, , drop = FALSE]
+    d_flat <- d[!d$boring %in% coloured, , drop = FALSE]
+    strip_lo <- y_min * 0.85; strip_hi <- y_min * 0.25
+    p <- p +
+      ggplot2::geom_rect(data = d_col,
+                         ggplot2::aes(xmin = .data$depth - .data$depth_step / 2,
+                                      xmax = .data$depth + .data$depth_step / 2,
+                                      ymin = 0, ymax = .data$signal,
+                                      fill = ifelse(is.na(.data$color), .LIFR_AREA,
+                                                    .data$color))) +
+      ggplot2::scale_fill_identity() +
+      ggplot2::geom_segment(data = d_col[!is.na(d_col$color), , drop = FALSE],
+                            ggplot2::aes(x = .data$depth, xend = .data$depth,
+                                         colour = .data$color),
+                            y = strip_lo, yend = strip_hi, linewidth = 1.2) +
+      ggplot2::scale_colour_identity()
+    if (nrow(d_flat))
+      p <- p + .geom_area_gaps(data = d_flat, fill = .LIFR_AREA, alpha = 0.7,
+                               na.rm = TRUE)
+  } else {
+    p <- p + .geom_area_gaps(fill = .LIFR_AREA, alpha = 0.7, na.rm = TRUE)
+  }
+  p <- p +
     ggplot2::geom_line(colour = "black", linewidth = 0.4, na.rm = TRUE) +
-    ggplot2::coord_flip(xlim = c(0, xmax), ylim = c(0, ymax)) +
+    ggplot2::coord_flip(xlim = c(0, xmax), ylim = c(y_min, ymax)) +
     ggplot2::scale_x_reverse(expand = c(0, 0)) +
     ggplot2::scale_y_continuous(expand = c(0, 0)) +
     ggplot2::facet_wrap(ggplot2::vars(.data$boring), ncol = ncol) +
@@ -263,7 +337,7 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
     dmax <- max(comb$depth, na.rm = TRUE)
     ymax <- .axis_cap(comb[[channel]], 1)
     p <- ggplot2::ggplot(comb, ggplot2::aes(x = .data$depth, y = .data[[channel]])) +
-      ggplot2::geom_area(fill = .LIFR_AREA, alpha = 0.55, na.rm = TRUE) +
+      .geom_area_gaps(fill = .LIFR_AREA, alpha = 0.55, na.rm = TRUE) +
       ggplot2::geom_line(colour = "black", linewidth = 0.5, na.rm = TRUE) +
       ggplot2::geom_point(data = comb[comb$.changed, , drop = FALSE],
                           colour = "red", size = 1.6, na.rm = TRUE) +
@@ -298,6 +372,24 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
   list(xr = xr, yr = yr)
 }
 
+# Reference sizes for boring_map()'s size key (daktools #662): the site
+# maximum and a
+# quarter and a sixteenth of it, which under an area law are markers of half
+# and a quarter of the maximum diameter -- so the key spans the small markers
+# a reader actually has to judge, where ggplot's extended breaks (25 % of the
+# maximum at best) give nothing. The maximum is kept exact (its label is
+# rounded, not its size); the fractions are rounded to two significant
+# figures; non-positive, duplicate and out-of-range values drop. The scale
+# then censors any break below the data minimum, so a one-value site keys a
+# single entry.
+.size_key_breaks <- function(limits) {
+  mx <- max(limits, na.rm = TRUE)
+  if (!is.finite(mx) || mx <= 0) return(mx)
+  b <- unique(c(mx, signif(c(mx / 4, mx / 16), 2)))
+  b <- b[is.finite(b) & b > 0 & b <= mx]
+  if (!length(b)) mx else sort(b)
+}
+
 # Per-boring peak summary used by boring_map() and the charts.
 .boring_peaks <- function(data, depth_min = NULL, depth_max = NULL, warn = TRUE) {
   has_color <- "color" %in% names(data) && any(!is.na(data$color))
@@ -329,9 +421,9 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 #' Plan-view map of boring locations sized by peak LIF signal
 #'
 #' Each boring is a marker at its easting/northing, labelled with its name
-#' and peak %RE. Marker area scales with the square root of peak signal so
-#' the site's response pattern reads even in greyscale; non-detects are
-#' hollow circles. Marker fill is a neutral blue unless
+#' and peak %RE. Marker **area** is proportional to peak signal, with a size
+#' key, so the site's response pattern reads even in greyscale; non-detects
+#' are hollow circles. Marker fill is a neutral blue unless
 #' `use_instrument_color = TRUE`, which fills each marker with the
 #' emission colour recorded at the depth of peak signal.
 #'
@@ -339,10 +431,21 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 #' @param depth_min,depth_max Optional depth window (ft); only readings
 #'   inside it contribute to each boring's peak.
 #' @param nd_threshold Peak signal at or below this value is a non-detect.
-#'   Default 0.
-#' @param size_by_signal Logical. Scale marker area by peak signal. Default
-#'   `TRUE`.
-#' @param point_size Marker diameter at maximum signal. Default 4.
+#'   Default 0; must be `>= 0` when `size_by_signal = TRUE` (the signal is
+#'   non-negative).
+#' @param size_by_signal Logical. When `TRUE` (default), marker **area** is
+#'   proportional to the boring's peak signal (`ggplot2::scale_size_area()`),
+#'   with a size key, so magnitude reads on greyscale prints; no minimum size
+#'   is applied. Below about 1 % of the site peak the drawn dot is dominated
+#'   by its 0.7 outline stroke and the on-map label carries the value.
+#'   Suppress the key with `ggplot2::guides(size = "none")`. Set `FALSE` for
+#'   constant-size markers.
+#' @param point_size Reference marker diameter. With
+#'   `size_by_signal = TRUE` the maximum-signal marker is drawn at **twice**
+#'   this and marker area is proportional to peak signal below it; with
+#'   `FALSE` every marker is drawn at exactly this. The hollow non-detect
+#'   ring is not on the size scale and is drawn no larger than the smallest
+#'   detect marker (at most half `point_size`). Default 4.
 #' @param use_instrument_color Fill markers with the emission colour at peak
 #'   depth. Default `FALSE`.
 #' @param label_size Label font size. Default 2.4.
@@ -365,8 +468,10 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL) {
 #' @param width,height,dpi Passed to `ggplot2::ggsave()`.
 #' @return A ggplot object.
 #' @section Reading the map:
-#' * Marker **area** is proportional to peak signal (square-root scaling),
-#'   so the response pattern reads in greyscale.
+#' * Marker **area** is proportional to peak signal, so the response pattern
+#'   reads in greyscale. The size key gives the site maximum and a quarter
+#'   and a sixteenth of it; a marker at 1 % of the peak really is 1 % of the
+#'   peak's area, so a ring of weak detects cannot read as a broad plume.
 #' * A **hollow circle** is a non-detect: no reading above `nd_threshold`
 #'   in the depth window.
 #' * Marker **fill** is a neutral blue unless `use_instrument_color = TRUE`,
@@ -410,6 +515,12 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
   if (!is.null(basemap) && !inherits(basemap, "lifr_basemap"))
     stop("basemap must be a lifr_basemap object from fetch_basemap(), or NULL.",
          call. = FALSE)
+  # A negative threshold would admit zero or negative peaks as "detects",
+  # which an area scale draws at zero size or (negative) at a positive area
+  # -- and the signal is non-negative anyway (daktools #662).
+  if (isTRUE(size_by_signal) && !(is.numeric(nd_threshold) && nd_threshold >= 0))
+    stop("boring_map: `nd_threshold` must be a number >= 0 (the signal is ",
+         "non-negative); got ", format(nd_threshold), call. = FALSE)
   bs <- .boring_peaks(data, depth_min, depth_max)
   bs <- bs[is.finite(bs$easting) & is.finite(bs$northing), , drop = FALSE]
   if (nrow(bs) == 0L) stop("boring_map: no boring has finite coordinates.", call. = FALSE)
@@ -425,12 +536,27 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
   # collapsing coord_equal() into a hairline panel (#16); the north arrow
   # and scale bar are sized from the same padded extent.
   ext <- .plan_extent(bs$easting, bs$northing, min_extent)
+  # Marker size. size_by_signal = TRUE (daktools #662): marker AREA is
+  # proportional to
+  # peak signal -- the detect layer maps peak_signal through
+  # scale_size_area(max_size = 2 * point_size), so the maximum-signal marker
+  # keeps the diameter the old law drew it at and every other marker shrinks
+  # to its honest area. The old formula, point_size * (0.4 + 1.6 * sqrt(r)),
+  # had a 40 % diameter floor that drew a boring at 1 % of the peak at 7.8 %
+  # of the peak's area (10 % at 20 %, 25 % at 36 %), with no key to read it
+  # against: a ring of weak detects around a hot spot read as a broad
+  # moderate plume. No minimum now -- below ~1 % of the peak the 0.7 outline
+  # stroke dominates the drawn dot and the on-map label carries the value.
+  # The hollow non-detect ring is off the size scale and is never larger than
+  # the smallest detect, so a non-detect cannot outweigh a real detect (it
+  # stays point_size * 0.5 wherever no detect is that small).
+  # size_by_signal = FALSE: a constant diameter through the identity scale,
+  # exactly as before.
   if (isTRUE(size_by_signal)) {
-    smax <- if (any(!bs$is_nd)) max(bs$peak_signal[!bs$is_nd]) else 0
-    bs$marker_size <- if (smax > 0)
-      point_size * 0.4 + point_size * 1.6 * sqrt(pmax(bs$peak_signal, 0) / smax)
-    else rep(point_size, nrow(bs))
-    bs$marker_size[bs$is_nd] <- point_size * 0.5
+    det_peak <- bs$peak_signal[!bs$is_nd]
+    det_size <- if (length(det_peak) && max(det_peak) > 0)
+      2 * point_size * sqrt(det_peak / max(det_peak)) else numeric(0)
+    nd_size  <- min(point_size * 0.5, det_size)
   } else bs$marker_size <- point_size
 
   det <- bs[!bs$is_nd, , drop = FALSE]; nds <- bs[bs$is_nd, , drop = FALSE]
@@ -442,14 +568,33 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
     p <- p + ggplot2::annotation_raster(bmc$image, xmin = bmc$xmin, xmax = bmc$xmax,
                                         ymin = bmc$ymin, ymax = bmc$ymax)
   }
-  if (nrow(det))
-    p <- p + ggplot2::geom_point(data = det,
-                                 ggplot2::aes(fill = .data$fill, size = .data$marker_size),
-                                 shape = 21, colour = "#2a2a2a", stroke = 0.7)
-  if (nrow(nds))
-    p <- p + ggplot2::geom_point(data = nds, ggplot2::aes(size = .data$marker_size),
-                                 shape = 1, colour = "#2a2a2a", stroke = 1)
-  p <- p + ggplot2::scale_size_identity(guide = "none") + ggplot2::scale_fill_identity()
+  if (isTRUE(size_by_signal)) {
+    if (nrow(det))
+      p <- p + ggplot2::geom_point(data = det,
+                                   ggplot2::aes(fill = .data$fill,
+                                                size = .data$peak_signal),
+                                   shape = 21, colour = "#2a2a2a", stroke = 0.7) +
+        ggplot2::scale_size_area(
+          max_size = 2 * point_size, name = "Peak signal (%RE)",
+          breaks = .size_key_breaks, labels = .fmt_num,
+          # the key's fill is not on the colour scale; colour, stroke and
+          # shape are inherited from the geom
+          guide = ggplot2::guide_legend(override.aes = list(fill = "grey70")))
+    if (nrow(nds))
+      p <- p + ggplot2::geom_point(data = nds,
+                                   size = nd_size,   # a constant, off the size scale
+                                   shape = 1, colour = "#2a2a2a", stroke = 1)
+  } else {
+    if (nrow(det))
+      p <- p + ggplot2::geom_point(data = det,
+                                   ggplot2::aes(fill = .data$fill, size = .data$marker_size),
+                                   shape = 21, colour = "#2a2a2a", stroke = 0.7)
+    if (nrow(nds))
+      p <- p + ggplot2::geom_point(data = nds, ggplot2::aes(size = .data$marker_size),
+                                   shape = 1, colour = "#2a2a2a", stroke = 1)
+    p <- p + ggplot2::scale_size_identity(guide = "none")
+  }
+  p <- p + ggplot2::scale_fill_identity()
 
   label_col <- if (is.null(basemap)) "#1a1a1a" else "#ffffff"
   seg_col   <- if (is.null(basemap)) "#999999" else "#e8e8e8"

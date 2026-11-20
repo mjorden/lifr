@@ -29,13 +29,30 @@ export_site_charts(
 \item{quiet}{Suppress the per-file message.}
 }
 \value{
-Character vector of written paths, invisibly.
+Character vector of written paths, invisibly, carrying a
+\code{"failed"} attribute: a data frame of \code{chart}, \code{stage} (\code{"build"} or
+\code{"save"}) and \code{error} for every chart that could not be produced, or
+\code{NULL} when all of them were. \code{\link[=process_site]{process_site()}} logs it.
 }
 \description{
 Writes whichever of \code{\link[=chart_max_response]{chart_max_response()}}, \code{\link[=chart_peak_by_boring]{chart_peak_by_boring()}},
 \code{\link[=chart_hp_histogram]{chart_hp_histogram()}}, and \code{\link[=chart_ec_histogram]{chart_ec_histogram()}} the data supports as
 \verb{<prefix>_chart_<name>.png}.
 }
+\section{Failures are reported, not skipped}{
+
+A builder returns \code{NULL} when the site has no data for that chart (no
+\code{hp} channel, say), and that is a silent, expected skip. An \strong{error}
+inside a builder, or a \code{ggsave()} that cannot write the file, is
+different: each raises a warning naming the chart and is recorded in the
+\code{"failed"} attribute, and the remaining charts still render. Previously
+both paths returned \code{NULL} and a thrown builder was indistinguishable
+from an absent channel, so the report embedded the previous run's PNG and
+the step log called the survivors the complete set. A stale file left at
+the path of a chart that failed is deleted, so nothing downstream reads
+it as current.
+}
+
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
