@@ -3,7 +3,7 @@
 # Depth profiles put depth on the x aesthetic, flip the coordinates, and
 # reverse the axis so depth reads top-to-bottom like a log.
 
-# geom_area() that breaks at NA, as geom_line() does (#30).
+# geom_area() that breaks at NA, as geom_line() does (daktools #796).
 #
 # Since ggplot2 3.4 geom_area() defaults to stat_align, which drops NA rows
 # and then runs the polygon straight across the gap, so an interval deleted
@@ -235,7 +235,7 @@ lif_plot_all <- function(data, xmax = NULL, ymax = NULL,
     return(ggplot2::ggplot())
   }
   # The sheet draws the same per-reading emission-colour fill and colour
-  # strip as the single-boring panel (#35). It used to ignore `color`
+  # strip as the single-boring panel (daktools #666). It used to ignore `color`
   # entirely -- every panel was the flat area -- so the comparison a
   # small-multiples sheet exists for, which borings share a fluorescence
   # signature, was the one thing it could not show, while layout = "list"
@@ -486,7 +486,8 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL,
   list(xr = xr, yr = yr)
 }
 
-# Reference sizes for boring_map()'s size key (#31): the site maximum and a
+# Reference sizes for boring_map()'s size key (daktools #662): the site
+# maximum and a
 # quarter and a sixteenth of it, which under an area law are markers of half
 # and a quarter of the maximum diameter -- so the key spans the small markers
 # a reader actually has to judge, where ggplot's extended breaks (25 % of the
@@ -642,7 +643,7 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
          call. = FALSE)
   # A negative threshold would admit zero or negative peaks as "detects",
   # which an area scale draws at zero size or (negative) at a positive area
-  # -- and the signal is non-negative anyway (#31).
+  # -- and the signal is non-negative anyway (daktools #662).
   if (isTRUE(size_by_signal) && !(is.numeric(nd_threshold) && nd_threshold >= 0))
     stop("boring_map: `nd_threshold` must be a number >= 0 (the signal is ",
          "non-negative); got ", format(nd_threshold), call. = FALSE)
@@ -675,7 +676,8 @@ boring_map <- function(data, depth_min = NULL, depth_max = NULL,
   # collapsing coord_equal() into a hairline panel (#16); the north arrow
   # and scale bar are sized from the same padded extent.
   ext <- .plan_extent(bs$easting, bs$northing, min_extent)
-  # Marker size. size_by_signal = TRUE (#31): marker AREA is proportional to
+  # Marker size. size_by_signal = TRUE (daktools #662): marker AREA is
+  # proportional to
   # peak signal -- the detect layer maps peak_signal through
   # scale_size_area(max_size = 2 * point_size), so the maximum-signal marker
   # keeps the diameter the old law drew it at and every other marker shrinks

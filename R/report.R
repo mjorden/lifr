@@ -206,7 +206,7 @@ process_site <- function(data_dir, locations_file = NULL, edits = NULL,
                                                   character(0) })
     # export_site_charts() warns on each chart it could not build or save and
     # records them; give every one its own "failed" log row, so the log never
-    # presents the survivors as the complete set (#34).
+    # presents the survivors as the complete set (daktools #649).
     cf <- attr(chart_files, "failed")
     if (is.data.frame(cf))
       for (j in seq_len(nrow(cf)))
@@ -418,7 +418,7 @@ print.lif_site <- function(x, ...) {
   # A builder returning NULL means the site has no data for that chart and is
   # a silent skip; a builder that THROWS is a failure, and a client-facing
   # report must not turn it into a silent absence. Warn, naming the chart,
-  # and write the report without that figure (#34).
+  # and write the report without that figure (daktools #649).
   build <- function(nm, expr) {
     tryCatch(expr, error = function(e) {
       warning(sprintf("site_report: chart '%s' failed and is omitted: %s", nm,
