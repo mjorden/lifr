@@ -327,6 +327,14 @@ lif_plot_all <- function(data, xmax = NULL, ymax = NULL,
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
 #' lif_overview(lif, "LIF-05")
+#'
+#' # Corrected from the ground surface, `hp` goes negative through the
+#' # unsaturated zone. The default 0 floor keeps the figure's shape and
+#' # says how many readings sit below it; `ymin = NULL` shows them.
+#' corrected <- hp_correction(lif, water_table = 0)
+#' lif_overview(corrected, "LIF-06")
+#' lif_overview(corrected, "LIF-06", ymin = NULL)
+#' @seealso [qc_compare()] for the same floor over an edit, `vignette("plotting")`
 #' @export
 lif_overview <- function(data, borename, channels = c("ec", "hp"),
                          depth_max = NULL, ymax = NULL, ymin = 0) {
@@ -367,8 +375,7 @@ lif_overview <- function(data, borename, channels = c("ec", "hp"),
 #' filled in, and a depth present in only one of the two frames all count as
 #' edits; `NA` on both sides counts as unchanged. A depth with no reading
 #' left in `edited` has no value to put a dot on, so it is marked with a red
-#' cross just above the panel floor, where the fill and line break
-#' (daktools #795).
+#' cross just above the panel floor, where the fill and line break.
 #'
 #' @param raw The frame before editing.
 #' @param edited The frame after editing. Rows are matched on `boring` and
@@ -381,8 +388,7 @@ lif_overview <- function(data, borename, channels = c("ec", "hp"),
 #'   the floor are left out of view, not dropped; when any are, a message of
 #'   class `"lifr_below_floor"` and a caption say how many. This is a QC view
 #'   of what an edit changed, so the floor applies to every channel,
-#'   `signal` included -- unlike the LIF log panels, which keep a 0 floor
-#'   (daktools #661).
+#'   `signal` included -- unlike the LIF log panels, which keep a 0 floor.
 #' @return A named list of ggplots (one per changed boring), invisibly.
 #' @examples
 #' demo <- system.file("extdata", "demo", package = "lifr")
@@ -390,6 +396,16 @@ lif_overview <- function(data, borename, channels = c("ec", "hp"),
 #' ed  <- lif_editor_bulk(raw, top = 0, bottom = 3, verbose = FALSE)
 #' plots <- qc_compare(raw, ed)
 #' plots[[1]]
+#'
+#' # An interval deleted with `value = NA` leaves no value to put a dot on,
+#' # so those depths carry a red cross at the panel floor instead
+#' na_ed <- lif_editor(raw, "LIF-05", top = 10, bottom = 14, value = NA)
+#' qc_compare(raw, na_ed)[["LIF-05"]]
+#'
+#' # Negative readings are disclosed, and `ymin = NULL` brings them into view
+#' qc_compare(raw, hp_correction(raw, water_table = 0), channel = "hp",
+#'            ymin = NULL)[["LIF-06"]]
+#' @seealso [lif_overview()], `vignette("editing")`
 #' @export
 qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL,
                        ymin = 0) {
@@ -586,7 +602,7 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL,
 #'   grey instead of the emission colour or neutral blue, and a caption line
 #'   names the floor. This matches [chart_max_response()], which greys a bar
 #'   below its lowest screening threshold, so the two figures in one report
-#'   agree about every boring (daktools #801); `<` rather than `<=` in both,
+#'   agree about every boring; `<` rather than `<=` in both,
 #'   so a peak exactly at the floor is coloured in both. [process_site()]
 #'   passes the report's lowest `response_thresholds` value.
 #' @return A ggplot object.
@@ -617,6 +633,10 @@ qc_compare <- function(raw, edited, channel = "signal", output_dir = NULL,
 #'
 #' # Uniform markers, no cartographic furniture
 #' boring_map(lif, size_by_signal = FALSE, north_arrow = FALSE, scale_bar = FALSE)
+#'
+#' # Grey the detects below a screening floor, as chart_max_response() does,
+#' # so a map and a bar chart in one report agree about every boring
+#' boring_map(lif, use_instrument_color = TRUE, fill_floor = 5)
 #'
 #' \dontrun{
 #' # Over aerial imagery (needs sf, png, and network access)

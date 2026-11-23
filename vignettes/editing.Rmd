@@ -103,6 +103,15 @@ lif <- lif_zero_shallow(lif, depth = 1)
 lif <- lif_zero_below_threshold(lif, threshold = 0.5, borings = c("LIF-01", "LIF-04"))
 ```
 
+Both record what they actually reached. Called across the site they write one
+row with `boring = NA`; scoped with `borings`, they write one row per named
+boring, each with its own `n_rows_changed`, so the report's whole-log caption
+lands only under the logs that were edited:
+
+```{r helpers-scope}
+tail(edit_history(lif), 3)[, c("fn", "boring", "n_rows_changed")]
+```
+
 ## Edit plans in a CSV
 
 For a real site, keep the edits in a file next to the data. One row per
@@ -224,6 +233,31 @@ with the changed depths in red, and skips the rest:
 plots <- qc_compare(lif_import(demo, verbose = FALSE), fresh)
 names(plots)
 plots[["LIF-05"]]
+```
+
+Depths are matched on `boring` and `depth` as an outer join, so a depth that
+exists in only one of the two frames -- what `lif_downsample()` leaves behind
+-- still counts as a change rather than dropping out of the comparison.
+
+A reading deleted with `value = NA` has no value left to put a dot on. Those
+depths get a red cross just above the panel floor, with a subtitle saying so,
+rather than the silent gap that made a changed panel pair look identical:
+
+```{r qc-na, message = TRUE}
+na_ed <- lif_editor(lif_import(demo, verbose = FALSE), "LIF-05",
+                    top = 10, bottom = 14, value = NA)
+qc_compare(lif_import(demo, verbose = FALSE), na_ed)[["LIF-05"]]
+```
+
+Unlike the LIF log panels, which floor at 0 because negative %RE is not a
+quantity, `qc_compare()` is a QC view of what an edit changed, so `ymin`
+applies to whichever `channel` you compare. The default floor of 0 reports
+how many readings fall below it; `ymin = NULL` opens the axis:
+
+```{r qc-ymin, message = TRUE}
+raw <- lif_import(demo, verbose = FALSE)
+qc_compare(raw, hp_correction(raw, water_table = 0), channel = "hp",
+           ymin = NULL)[["LIF-06"]]
 ```
 
 The site report does the same for every boring on its Boring logs tab,

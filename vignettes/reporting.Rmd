@@ -50,6 +50,50 @@ basename(unlist(site$reports))
 `site$raw_data` is the frame exactly as imported, so you can keep working
 with either.
 
+### Reading the step log
+
+`site$log` has one row per pipeline step with the rows and borings left
+after it, and a `detail` string naming the arguments that step ran with.
+Each argument is rendered on its own, so a vector or a nested list reads
+back the way it was passed -- `c(LIF-01=12|LIF-02=14.5)` for a per-boring
+water table, `list(a=1|b=c(2|3))` for a nested list:
+
+```{r log-detail}
+small <- tempfile("site3")
+lif_simulate(n_borings = 3, dir = small, verbose = FALSE)
+
+site2 <- process_site(
+  small,
+  corrections = list(hp = list(water_table = c("LIF-01" = 12, "LIF-02" = 14.5,
+                                               "LIF-03" = 11),
+                               gradient = 0.433)),
+  output_dir = tempfile("out3"), report = FALSE, quiet = TRUE)
+site2$log[site2$log$action == "hp_correction()", c("action", "detail")]
+```
+
+That string is the record a reviewer checks the corrections against, so it
+has to agree with the edit history in the same report.
+
+### When an optional step fails
+
+A step the pipeline can do without -- the QA summary, a site chart, the
+report itself -- warns, lands in the log as a `failed:` row, and lets the
+rest of the run finish. `export_site_charts()` reports per chart: a chart
+whose builder errors or whose PNG cannot be written gets its own log row
+naming the stage and the error, a stale PNG at that path is deleted, and
+the other charts still render. A builder that returns nothing because the
+site has no data for that chart (no `hp` channel, say) is a silent,
+expected skip, not a failure.
+
+Nothing failed in the run above, so its `charts` row lists the complete
+set. Had one failed, it would sit beside this row as its own
+`chart_<name>` row with `failed to build: ...` or `failed to save: ...` in
+`detail`:
+
+```{r log-failed}
+site$log[site$log$step == "charts", c("action", "detail")]
+```
+
 ### Arguments worth knowing
 
 | Argument | What it does |
@@ -57,7 +101,7 @@ with either.
 | `edits` | A CSV path or data frame for `lif_apply_edits()`. See `vignette("editing")`. |
 | `corrections` | `list(zero_shallow = 1)` zeroes the top foot; `zero_below = 0.5` zeroes readings under 0.5 %RE; `hp = TRUE` or `hp = list(water_table = 6, gradient = 0.433)` runs `hp_correction()`. Applied in that order, after the edits. |
 | `crs` | The projected EPSG code of the coordinates. When given, the report adds a boring map over USGS aerial imagery (needs network access; degrades to a note offline). |
-| `response_thresholds` | The Summary tab lists borings whose peak exceeds each value (default 1, 10, 50 %RE). |
+| `response_thresholds` | The Summary tab lists borings whose peak exceeds each value (default 1, 10, 50 %RE). The lowest value is also the screening floor for the response map and the peak-response chart, so both grey the same borings. |
 | `report_formats` | Any of `"html"`, `"md"`, `"pdf"`. |
 | `date_suffix` | Appends `_YYMMDD` to every output name so successive runs sit side by side. |
 | `prefix` | Filename prefix; default is a slug of `site_name`. |
@@ -85,7 +129,11 @@ heading. Printing lays every tab out as its own section.
 **Summary.** Stat tiles (borings, samples, depth range, channels, edits),
 the boring maps, the %RE disclosure, a table of every boring's peak
 response and the depth it occurred at, and one table per screening
-threshold listing the borings above it.
+threshold listing the borings above it. On the response map, marker area is
+proportional to peak signal against a size key, hollow rings are
+non-detects, and a grey fill is a real detect whose peak falls below the
+lowest screening threshold -- the same borings the peak-response chart
+greys.
 
 **Data & QA.** A per-boring inventory (samples, top and bottom depth,
 native sampling interval, channels present), the summary statistics from

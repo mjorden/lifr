@@ -97,18 +97,18 @@ lif <- lif_zero_shallow(lif, depth = 1)
 lif <- lif_editor(lif, "LIF-03", top = 20, bottom = 22)
 lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)   # keep one clean window
 tail(edit_history(lif), 3)
-#>                    timestamp         fn boring top bottom value n_rows_changed
-#> 12 2026-09-04 14:40:07 -0600 lif_editor LIF-12   0      1     0              4
-#> 13 2026-09-04 14:40:07 -0600 lif_editor LIF-03  20     22     0              9
-#> 14 2026-09-04 14:40:07 -0600   lif_keep LIF-02   6     28     0             55
+#>                    timestamp         fn boring  top bottom value n_rows_changed
+#> 12 2026-11-20 15:17:21 -0700 lif_editor LIF-12 -Inf      1     0              4
+#> 13 2026-11-20 15:17:21 -0700 lif_editor LIF-03   20     22     0              9
+#> 14 2026-11-20 15:17:21 -0700   lif_keep LIF-02    6     28     0             51
 #>                                              notes
 #> 12                                            <NA>
 #> 13                                            <NA>
 #> 14 kept 6-28 ft; zeroed rows outside these windows
 ```
 
-`qc_compare()` shows exactly what changed, with the edited depths in
-red:
+`qc_compare()` shows exactly what changed, with the edited depths in red
+and a cross where an edit left no reading to plot:
 
 ``` r
 plots <- qc_compare(lif_import(demo, verbose = FALSE), lif)
@@ -144,6 +144,10 @@ head(qa$by_boring)
 ```
 
 ### Map the site
+
+Marker **area** is proportional to peak signal, read against the size
+key, and the fill is the emission colour recorded at the depth of that
+peak – the product signature. Hollow rings are non-detects.
 
 ``` r
 boring_map(lif, use_instrument_color = TRUE, site_name = "Demo site")

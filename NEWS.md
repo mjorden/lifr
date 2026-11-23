@@ -1,5 +1,33 @@
 # lifr (development version)
 
+## Documentation and examples
+
+The prose and the worked examples now match the behaviour the two rounds of
+ports left behind. No code changed.
+
+- The README's figures and printed output were knitted in September, before
+  marker area, the size key, the hollow bars on `chart_max_response()`, the
+  emission colour on the facet sheet, and the `NA` break in area fills. The
+  map in the README showed the old diameter law with no key; it has been
+  re-knitted, along with the five-minute tour's edit-history output, whose
+  recorded windows and changed-row counts had moved with the ports.
+- Help pages no longer cite `daktools` issue numbers. A lifr reader cannot
+  resolve them; the provenance stays here in `NEWS.md`, where it belongs.
+  Affects `?boring_map`, `?qc_compare`, and `?lif_zero_below_threshold`.
+- Examples now exercise what the ports added: `ymin = NULL` on
+  `lif_overview()` and `qc_compare()`, the red cross `qc_compare()` draws
+  where `value = NA` left nothing to plot, `boring_map(fill_floor =)`, the
+  per-boring audit rows from `lif_zero_below_threshold(borings =)`, the
+  `"failed"` attribute on `export_site_charts()`, the keep-window guard in
+  `lif_keep()`, and the per-boring `water_table` vector that
+  `hp_correction()` has always accepted but never showed.
+- `vignette("editing")` covers the scoped audit rows, the outer-join depth
+  match, the `NA` crosses, and `ymin` on a QC panel.
+  `vignette("reporting")` covers how a correction's arguments are rendered
+  in the step log, that the lowest `response_thresholds` value is the
+  screening floor shared by the response map and the peak-response chart,
+  and what a failed optional step leaves in the log.
+
 ## Second round of daktools ports
 
 Six more defects carried over from the daktools October/November 2026 fixes

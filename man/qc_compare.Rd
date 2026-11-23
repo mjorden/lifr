@@ -22,8 +22,7 @@ boring is written there.}
 the floor are left out of view, not dropped; when any are, a message of
 class \code{"lifr_below_floor"} and a caption say how many. This is a QC view
 of what an edit changed, so the floor applies to every channel,
-\code{signal} included -- unlike the LIF log panels, which keep a 0 floor
-(daktools #661).}
+\code{signal} included -- unlike the LIF log panels, which keep a 0 floor.}
 }
 \value{
 A named list of ggplots (one per changed boring), invisibly.
@@ -38,8 +37,7 @@ A reading set to \code{NA} (what \code{lif_editor(value = NA)} writes), an \code
 filled in, and a depth present in only one of the two frames all count as
 edits; \code{NA} on both sides counts as unchanged. A depth with no reading
 left in \code{edited} has no value to put a dot on, so it is marked with a red
-cross just above the panel floor, where the fill and line break
-(daktools #795).
+cross just above the panel floor, where the fill and line break.
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
@@ -47,4 +45,16 @@ raw <- lif_import(demo, verbose = FALSE)
 ed  <- lif_editor_bulk(raw, top = 0, bottom = 3, verbose = FALSE)
 plots <- qc_compare(raw, ed)
 plots[[1]]
+
+# An interval deleted with `value = NA` leaves no value to put a dot on,
+# so those depths carry a red cross at the panel floor instead
+na_ed <- lif_editor(raw, "LIF-05", top = 10, bottom = 14, value = NA)
+qc_compare(raw, na_ed)[["LIF-05"]]
+
+# Negative readings are disclosed, and `ymin = NULL` brings them into view
+qc_compare(raw, hp_correction(raw, water_table = 0), channel = "hp",
+           ymin = NULL)[["LIF-06"]]
+}
+\seealso{
+\code{\link[=lif_overview]{lif_overview()}}, \code{vignette("editing")}
 }

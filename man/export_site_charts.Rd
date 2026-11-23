@@ -57,6 +57,14 @@ it as current.
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 out <- tempfile("charts")
-export_site_charts(lif, out, quiet = TRUE)
-list.files(out)
+written <- export_site_charts(lif, out, quiet = TRUE)
+basename(written)
+
+# Nothing failed here, so the "failed" attribute is NULL. When a chart
+# cannot be built or saved it lands there, with the stage and the error,
+# and process_site() copies those rows into the report's step log.
+attr(written, "failed")
+}
+\seealso{
+\code{\link[=process_site]{process_site()}}, \code{vignette("plotting")}
 }

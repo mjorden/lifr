@@ -49,4 +49,14 @@ shared depth axis.
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif_overview(lif, "LIF-05")
+
+# Corrected from the ground surface, `hp` goes negative through the
+# unsaturated zone. The default 0 floor keeps the figure's shape and
+# says how many readings sit below it; `ymin = NULL` shows them.
+corrected <- hp_correction(lif, water_table = 0)
+lif_overview(corrected, "LIF-06")
+lif_overview(corrected, "LIF-06", ymin = NULL)
+}
+\seealso{
+\code{\link[=qc_compare]{qc_compare()}} for the same floor over an edit, \code{vignette("plotting")}
 }
