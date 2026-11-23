@@ -345,7 +345,7 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
 #' Called with `borings`, it writes one row per named boring, each with its
 #' own `n_rows_changed`, as [lif_zero_shallow()] does: a single `boring = NA`
 #' row claimed the edit had reached borings it never touched, and put the
-#' report's whole-log caption under every log (daktools #791). A name repeated in
+#' report's whole-log caption under every log. A name repeated in
 #' `borings` is one target, not two.
 #'
 #' @inheritParams lif_zero_shallow
@@ -356,6 +356,13 @@ lif_zero_shallow <- function(data, depth, borings = NULL, value = 0) {
 #' demo <- system.file("extdata", "demo", package = "lifr")
 #' lif <- lif_import(demo, verbose = FALSE)
 #' lif <- lif_zero_below_threshold(lif, threshold = 1)
+#' edit_history(lif)                      # one row, boring = NA: the whole site
+#'
+#' # Scoped to a subset, the audit trail names each boring it reached
+#' part <- lif_zero_below_threshold(lif_import(demo, verbose = FALSE),
+#'                                  threshold = 1,
+#'                                  borings = c("LIF-01", "LIF-04"))
+#' edit_history(part)[, c("boring", "n_rows_changed")]
 #' @export
 lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0) {
   .check_edit_target(data, "lif_zero_below_threshold", value)
@@ -417,6 +424,10 @@ lif_zero_below_threshold <- function(data, threshold, borings = NULL, value = 0)
 #' lif <- lif_import(demo, verbose = FALSE)
 #' lif <- lif_keep(lif, "LIF-04", top = 10, bottom = 25)
 #' lif <- lif_keep(lif, "LIF-06", keep = list(c(8, 12), c(20, 28)))
+#'
+#' # A window that misses the boring entirely is the ft/metres slip, and
+#' # errors rather than blanking the log
+#' try(lif_keep(lif, "LIF-04", top = 300, bottom = 350))
 #' @export
 lif_keep <- function(data, borename, top = -Inf, bottom = Inf, value = 0,
                      keep = NULL, preview = FALSE) {

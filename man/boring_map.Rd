@@ -96,7 +96,7 @@ its detect status -- the reading is real -- but is filled the non-detect
 grey instead of the emission colour or neutral blue, and a caption line
 names the floor. This matches \code{\link[=chart_max_response]{chart_max_response()}}, which greys a bar
 below its lowest screening threshold, so the two figures in one report
-agree about every boring (daktools #801); \code{<} rather than \code{<=} in both,
+agree about every boring; \code{<} rather than \code{<=} in both,
 so a peak exactly at the floor is coloured in both. \code{\link[=process_site]{process_site()}}
 passes the report's lowest \code{response_thresholds} value.}
 }
@@ -143,6 +143,10 @@ boring_map(lif, depth_min = 10, depth_max = 25, use_instrument_color = TRUE,
 
 # Uniform markers, no cartographic furniture
 boring_map(lif, size_by_signal = FALSE, north_arrow = FALSE, scale_bar = FALSE)
+
+# Grey the detects below a screening floor, as chart_max_response() does,
+# so a map and a bar chart in one report agree about every boring
+boring_map(lif, use_instrument_color = TRUE, fill_floor = 5)
 
 \dontrun{
 # Over aerial imagery (needs sf, png, and network access)

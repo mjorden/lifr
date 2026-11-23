@@ -32,4 +32,14 @@ demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- hp_correction(lif, water_table = 6)
 edit_history(lif)
+
+# Per-boring water table, where the site has gauged wells. Every boring
+# in the frame needs an entry, and the audit row records each one.
+raw <- lif_import(demo, verbose = FALSE)
+two <- raw[raw$boring \%in\% c("LIF-01", "LIF-02"), ]
+corrected <- hp_correction(two, water_table = c("LIF-01" = 12, "LIF-02" = 14.5))
+edit_history(corrected)$notes
+}
+\seealso{
+\code{vignette("editing")} for corrections in the audit trail.
 }

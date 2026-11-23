@@ -30,11 +30,18 @@ Called without \code{borings}, the edit is recorded as a single audit row with
 Called with \code{borings}, it writes one row per named boring, each with its
 own \code{n_rows_changed}, as \code{\link[=lif_zero_shallow]{lif_zero_shallow()}} does: a single \code{boring = NA}
 row claimed the edit had reached borings it never touched, and put the
-report's whole-log caption under every log (daktools #791). A name repeated in
+report's whole-log caption under every log. A name repeated in
 \code{borings} is one target, not two.
 }
 \examples{
 demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_zero_below_threshold(lif, threshold = 1)
+edit_history(lif)                      # one row, boring = NA: the whole site
+
+# Scoped to a subset, the audit trail names each boring it reached
+part <- lif_zero_below_threshold(lif_import(demo, verbose = FALSE),
+                                 threshold = 1,
+                                 borings = c("LIF-01", "LIF-04"))
+edit_history(part)[, c("boring", "n_rows_changed")]
 }

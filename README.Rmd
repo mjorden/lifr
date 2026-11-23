@@ -94,7 +94,8 @@ lif <- lif_keep(lif, "LIF-02", top = 6, bottom = 28)   # keep one clean window
 tail(edit_history(lif), 3)
 ```
 
-`qc_compare()` shows exactly what changed, with the edited depths in red:
+`qc_compare()` shows exactly what changed, with the edited depths in red
+and a cross where an edit left no reading to plot:
 
 ```{r qc, fig.height = 4.5}
 plots <- qc_compare(lif_import(demo, verbose = FALSE), lif)
@@ -110,6 +111,10 @@ head(qa$by_boring)
 ```
 
 ### Map the site
+
+Marker **area** is proportional to peak signal, read against the size key,
+and the fill is the emission colour recorded at the depth of that peak --
+the product signature. Hollow rings are non-detects.
 
 ```{r map, fig.height = 7}
 boring_map(lif, use_instrument_color = TRUE, site_name = "Demo site")

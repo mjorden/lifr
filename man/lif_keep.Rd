@@ -54,4 +54,8 @@ demo <- system.file("extdata", "demo", package = "lifr")
 lif <- lif_import(demo, verbose = FALSE)
 lif <- lif_keep(lif, "LIF-04", top = 10, bottom = 25)
 lif <- lif_keep(lif, "LIF-06", keep = list(c(8, 12), c(20, 28)))
+
+# A window that misses the boring entirely is the ft/metres slip, and
+# errors rather than blanking the log
+try(lif_keep(lif, "LIF-04", top = 300, bottom = 350))
 }
